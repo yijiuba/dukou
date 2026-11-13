@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>渡口 · 一键部署</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --line: #e4e7ec;
+    --text: #16181d;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --ok: #15803d;
+    --err: #b91c1c;
+    --warn: #b45309;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 28px 24px 40px; }
+
+  header { margin-bottom: 20px; }
+  h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: .5px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+  }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
+  .full { grid-column: 1 / -1; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  input[type=text], input[type=password], input[type=number], textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    font-size: 13px;
+    font-family: inherit;
+    background: #fff;
+    color: var(--text);
+    outline: none;
+    transition: border-color .15s;
+  }
+  input:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 74px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  .row-inline { display: flex; gap: 10px; }
+  .row-inline > div:first-child { flex: 1; }
+  .row-inline > div:last-child { width: 110px; }
+
+  .check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
+  .check input { width: 15px; height: 15px; accent-color: var(--accent); }
+
+  details { margin-top: 6px; }
+  summary { cursor: pointer; font-size: 12px; color: var(--muted); user-select: none; }
+  summary:hover { color: var(--accent); }
+  .adv { margin-top: 12px; padding-top: 14px; border-top: 1px dashed var(--line); }
+
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 22px;
+    cursor: pointer;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 500;
+    transition: filter .15s;
+  }
+  button:hover { filter: brightness(1.08); }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  button.ghost { background: #eef1f6; color: var(--text); }
+
+  .actions { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+  .status-line { font-size: 12px; color: var(--muted); }
+
+  /* 进度 */
+  .steps { display: none; }
+  .steps.on { display: block; }
+  .step { display: flex; gap: 12px; padding: 9px 0; border-bottom: 1px solid #f1f3f6; }
+  .step:last-child { border-bottom: none; }
+  .dot {
+    width: 18px; height: 18px; flex: 0 0 18px; margin-top: 2px;
+    border-radius: 50%; border: 2px solid var(--line);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: #fff;
+  }
+  .step.run .dot { border-color: var(--accent); border-right-color: transparent; animation: spin .8s linear infinite; }
+  .step.ok  .dot { border-color: var(--ok); background: var(--ok); }
+  .step.ok  .dot::after { content: "✓"; }
+  .step.err .dot { border-color: var(--err); background: var(--err); }
+  .step.err .dot::after { content: "!"; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .step-body { flex: 1; min-width: 0; }
+  .step-name { font-size: 13px; font-weight: 500; }
+  .step-msg { font-size: 12px; color: var(--muted); }
+  .step.err .step-msg { color: var(--err); }
+
+  /* 日志 */
+  .logbox { display: none; margin-top: 6px; }
+  .logbox.on { display: block; }
+  .log {
+    background: #12161d;
+    color: #cfd6e2;
+    border-radius: 8px;
+    padding: 12px 14px;
+    height: 190px;
+    overflow-y: auto;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.75;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .log .t { color: #5b6675; margin-right: 8px; }
+  .log .ok { color: #6ee7a8; }
+  .log .er { color: #fca5a5; }
+
+  /* 结果 */
+  .result { display: none; }
+  .result.on { display: block; border-color: #b7e4c7; background: #f4fbf6; }
+  .kv { display: grid; grid-template-columns: 96px 1fr; gap: 6px 12px; font-size: 13px; margin: 10px 0 14px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
+  .next { font-size: 12px; color: var(--muted); border-top: 1px solid #d8eede; padding-top: 12px; }
+  .next code { background: #e8f5ec; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>渡口 · 一键部署</h1>
+    <p class="sub">填三样东西，剩下的交给程序：服务器装代理、本机配代理、装好 Codex。</p>
+  </header>
+
+  <div class="card">
+    <div class="grid">
+      <div class="full">
+        <label for="host">服务器 IP</label>
+        <div class="row-inline">
+          <div><input id="host" type="text" placeholder="例如 47.251.92.212" /></div>
+          <div><label for="sshPort">SSH 端口</label><input id="sshPort" type="number" value="22" /></div>
+        </div>
+        <div class="hint">阿里云的海外服务器，填公网 IP 即可。</div>
+      </div>
+
+      <div>
+        <label for="sshUser">SSH 账号</label>
+        <input id="sshUser" type="text" value="root" />
+      </div>
+      <div>
+        <label for="sshPass">SSH 密码</label>
+        <input id="sshPass" type="password" placeholder="服务器的登录密码" />
+      </div>
+
+      <div class="full">
+        <label class="check">
+          <input id="useKey" type="checkbox" />
+          <span>改用私钥登录（服务器禁用了密码登录时使用）</span>
+        </label>
+        <div id="keyBox" style="display:none; margin-top:10px;">
+          <textarea id="sshKey" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"></textarea>
+          <div class="hint">粘贴私钥全文。内容只在本机使用，不会上传到任何地方。</div>
+        </div>
+      </div>
+
+      <div class="full">
+        <label for="localSudo">本机密码（安装服务用）</label>
+        <input id="localSudo" type="password" placeholder="当前电脑的登录密码，留空表示免密 sudo" />
+        <div class="hint">在本机装后台服务需要管理员权限，这不是服务器密码。</div>
+      </div>
+
+      <div class="full">
+        <label class="check">
+          <input id="installCodex" type="checkbox" checked />
+          <span>同时安装 Codex（已安装则跳过）</span>
+        </label>
+      </div>
+
+      <div class="full">
+        <details>
+          <summary>高级设置</summary>
+          <div class="grid adv">
+            <div>
+              <label for="port">代理端口</label>
+              <input id="port" type="number" value="8443" />
+            </div>
+            <div>
+              <label for="user">代理用户名</label>
+              <input id="user" type="text" value="dukou" />
+            </div>
+            <div class="full">
+              <label for="pass">代理密码</label>
+              <input id="pass" type="text" placeholder="留空自动生成 16 位随机密码" />
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div class="actions" style="margin-top:18px;">
+      <button id="go">开始部署</button>
+      <button id="retry" class="ghost" style="display:none;">重新执行</button>
+      <span class="status-line" id="status"></span>
+    </div>
+  </div>
+
+  <div class="card steps" id="steps">
+    <div class="step" data-step="connect">
+      <div class="dot"></div>
+      <div class="step-body">
+        <div class="step-name">1 · 测试连接</div>
+        <div class="step-msg">等待开始</div>
+      </div>
+    </div>
+    <div class="step" data-step="server">
+      <div class="dot"></div>
+      <div class="step-body">
+        <div class="step-name">2 · 配置服务器</div>
+        <div class="step-msg">等待开始</div>
+      </div>
+    </div>
+    <div class="step" data-step="client">
+      <div class="dot"></div>
+      <div class="step-body">
+        <div class="step-name">3 · 配置本机代理</div>
+        <div class="step-msg">等待开始</div>
+      </div>
+    </div>
+    <div class="step" data-step="codex">
+      <div class="dot"></div>
+      <div class="step-body">
+        <div class="step-name">4 · 安装 Codex</div>
+        <div class="step-msg">等待开始</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card logbox" id="logbox">
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="card result" id="result">
+    <h1 style="font-size:15px;margin:0 0 8px;">部署完成</h1>
+    <dl class="kv">
+      <dt>服务器</dt><dd id="rAddr">-</dd>
+      <dt>用户名</dt><dd id="rUser">-</dd>
+      <dt>密码</dt><dd id="rPass">-</dd>
+      <dt>出口 IP</dt><dd id="rIp">-</dd>
+    </dl>
+    <div class="next">
+      <strong>下一步</strong><br />
+      1. 新开一个终端，执行 <code>codex</code>。第一次会弹浏览器让你登录 OpenAI —— 这一步必须你本人在场点授权，程序替不了。<br />
+      2. Firefox 里选「使用系统代理设置」，国内网站会自动直连。<br />
+      3. 终端里的代理变量已写入 <code>~/.bashrc</code>，新开终端即生效。
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let running = false;
+
+$('useKey').addEventListener('change', (e) => {
+  $('keyBox').style.display = e.target.checked ? 'block' : 'none';
+  $('sshPass').disabled = e.target.checked;
+});
+
+function setStep(step, cls, msg) {
+  const el = document.querySelector('.step[data-step="' + step + '"]');
+  if (!el) return;
+  el.classList.remove('run', 'ok', 'err');
+  if (cls) el.classList.add(cls);
+  if (msg) el.querySelector('.step-msg').textContent = msg;
+}
+
+function logLine(text, kind) {
+  const box = $('log');
+  const now = new Date().toTimeString().slice(0, 8);
+  const div = document.createElement('div');
+  const span = document.createElement('span');
+  span.className = 't';
+  span.textContent = now;
+  div.appendChild(span);
+  const body = document.createElement('span');
+  if (kind) body.className = kind;
+  body.textContent = text;
+  div.appendChild(body);
+  box.appendChild(div);
+  // 只保留最近 600 行，避免长时间运行把内存吃满
+  while (box.childElementCount > 600) box.removeChild(box.firstChild);
+  box.scrollTop = box.scrollHeight;
+}
+
+window.runtime.EventsOn('deploy:event', (ev) => {
+  if (ev.kind === 'log') {
+    logLine(ev.msg);
+    return;
+  }
+  if (ev.kind === 'step_start') {
+    setStep(ev.step, 'run', ev.msg);
+    logLine('▶ ' + ev.msg);
+    return;
+  }
+  if (ev.kind === 'step_done') {
+    setStep(ev.step, 'ok', ev.msg);
+    logLine('✓ ' + ev.msg, 'ok');
+    return;
+  }
+  if (ev.kind === 'step_fail') {
+    setStep(ev.step, 'err', ev.msg);
+    logLine('✗ ' + ev.msg, 'er');
+    if (ev.detail) logLine('   ' + ev.detail, 'er');
+    return;
+  }
+});
+
+function collect() {
+  return {
+    serverHost: $('host').value.trim(),
+    sshPort: parseInt($('sshPort').value, 10) || 22,
+    sshUser: $('sshUser').value.trim() || 'root',
+    sshPassword: $('useKey').checked ? '' : $('sshPass').value,
+    sshKey: $('useKey').checked ? $('sshKey').value : '',
+    localSudo: $('localSudo').value,
+    installCodex: $('installCodex').checked,
+    port: parseInt($('port').value, 10) || 8443,
+    user: $('user').value.trim() || 'dukou',
+    password: $('pass').value.trim(),
+  };
+}
+
+async function start() {
+  if (running) return;
+  const req = collect();
+  if (!req.serverHost) { $('status').textContent = '请先填服务器 IP'; return; }
+  if (!req.sshPassword && !req.sshKey) { $('status').textContent = '请填 SSH 密码或私钥'; return; }
+
+  running = true;
+  $('go').disabled = true;
+  $('retry').style.display = 'none';
+  $('result').classList.remove('on');
+  $('log').innerHTML = '';
+  $('steps').classList.add('on');
+  $('logbox').classList.add('on');
+  ['connect', 'server', 'client', 'codex'].forEach((s) => setStep(s, '', '等待开始'));
+  $('status').textContent = '部署中，请勿关闭窗口…';
+
+  try {
+    const res = await window.go.main.App.Deploy(req);
+    $('rAddr').textContent = res.serverAddr + ':' + res.port;
+    $('rUser').textContent = res.user;
+    $('rPass').textContent = res.password;
+    $('rIp').textContent = res.egressIp || '-';
+    $('result').classList.add('on');
+    $('status').textContent = '全部完成';
+  } catch (err) {
+    $('status').textContent = '失败：' + (err && err.message ? err.message : err);
+  } finally {
+    running = false;
+    $('go').disabled = false;
+    $('retry').style.display = 'inline-block';
+  }
+}
+
+$('go').addEventListener('click', start);
+$('retry').addEventListener('click', start);
+</script>
+</body>
+</html>

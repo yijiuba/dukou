@@ -140,10 +140,48 @@ jobs:
           /tmp/bin/dukou-linux-amd64 help
           /tmp/bin/dukou-linux-amd64 version
 
+  # ── 桌面程序：给用户下载的成品，不需要他装 Go ──
+  #
+  # 桌面包带 gui 构建标签，默认的 vet/test 不会碰它（Linux 上要 GTK/WebKit 头文件，
+  # 让每个单元测试都去装这些依赖不值当）。这个 job 里才装依赖并真正编译。
+  desktop:
+    name: desktop (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, out: dukou-desktop-linux-amd64 }
+          - { os: windows-latest, out: dukou-desktop-windows-amd64.exe }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: 安装 Linux 图形依赖
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: 编译桌面程序
+        run: |
+          mkdir -p dist
+          go build -tags gui -trimpath -ldflags "-s -w" \
+            -o dist/${{ matrix.out }} ./desktop
+          ls -lh dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.out }}
+          path: dist/
+
   # ── 全绿才允许合并 ──
   ci-ok:
     name: ci-ok
-    needs: [unit, build, smoke]
+    needs: [unit, build, smoke, desktop]
     runs-on: ubuntu-latest
     steps:
       - run: echo "全部通过"

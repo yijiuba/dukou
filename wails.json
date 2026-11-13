@@ -1,0 +1,21 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "dukou",
+  "outputfilename": "dukou-desktop",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev:watcher": "",
+  "frontend:dev:serverUrl": "",
+  "build:tags": "gui",
+  "author": {
+    "name": "yijiuba",
+    "email": "yijiuba@users.noreply.github.com"
+  },
+  "info": {
+    "companyName": "dukou",
+    "productName": "渡口",
+    "productVersion": "0.1.0",
+    "copyright": "",
+    "comments": "一键把海外服务器变成 AI 工具的出口"
+  }
+}
