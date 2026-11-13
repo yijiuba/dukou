@@ -377,6 +377,12 @@ go test ./...                        # 单元测试
 
 客户端与服务端共用 `internal/` 下的同一份内核，桌面版只是套了一层界面。
 
+| 文档 | 内容 |
+|---|---|
+| [docs/design.md](docs/design.md) | 架构与设计决策：每个决策对应一个真实踩过的坑 |
+| [docs/dev/build.md](docs/dev/build.md) | 构建、测试、CI、发版流程 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |
+
 ### 测试分四层
 
 | 层 | 内容 | 状态 |
