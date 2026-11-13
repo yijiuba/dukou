@@ -1,12 +1,16 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"runtime"
 )
 
 // Version 可在构建时用 -ldflags "-X github.com/yijiuba/dukou/cmd.Version=x.y.z" 覆盖。
 var Version = "0.1.0-dev"
+
+// ErrReported 表示错误已经以人类可读的方式打印过，入口不必再重复一遍。
+var ErrReported = errors.New("already reported")
 
 const tagline = "dukou —— 国内机器一键接入海外大模型（运行网络 + 自动化安装）"
 
@@ -17,6 +21,7 @@ type subcommand struct {
 }
 
 var commands = []subcommand{
+	{name: "deploy", summary: "一键部署：SSH 远程装服务端 + 装本机客户端", run: runDeploy},
 	{name: "server", summary: "在出口服务器上部署代理服务端", run: runServer},
 	{name: "client", summary: "在受控机器上接通道并安装 CLI", run: runClient},
 	{name: "doctor", summary: "分层诊断，定位断点并给出修复命令", run: runDoctor},

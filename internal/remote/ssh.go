@@ -1,7 +1,6 @@
 package remote
 
 import (
-	"bytes"
 	"fmt"
 	"net"
 	"strings"
@@ -84,7 +83,7 @@ func (s *SSH) Run(cmd string) (string, error) {
 	}
 	defer sess.Close()
 
-	var buf bytes.Buffer
+	var buf syncBuffer
 	sess.Stdout = &buf
 	sess.Stderr = &buf
 

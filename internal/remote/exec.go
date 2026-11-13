@@ -11,8 +11,33 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 )
+
+// syncBuffer 是并发安全的输出缓冲。
+//
+// 踩过的坑：把同一个 bytes.Buffer 同时赋给 Stdout 和 Stderr，
+// 两条流各由一个 goroutine 拷贝，而 bytes.Buffer 非并发安全——
+// 结果是输出随机丢失。表现极具迷惑性：连着问十次 id -u，
+// 有几次能拿到 "0"，有几次拿到空串，且 err 始终为 nil。
+// 这类问题只能在真机上撞到，本地单测看不出来。
+type syncBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
 
 // Exec 是执行一条 shell 命令的能力。
 type Exec interface {
@@ -57,7 +82,7 @@ func (l *Local) Run(cmd string) (string, error) {
 		c.Stdin = strings.NewReader(l.sudoPass + "\n")
 	}
 
-	var buf bytes.Buffer
+	var buf syncBuffer
 	c.Stdout = &buf
 	c.Stderr = &buf
 

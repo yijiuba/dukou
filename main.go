@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -9,7 +10,9 @@ import (
 
 func main() {
 	if err := cmd.Execute(os.Args[1:]); err != nil {
-		fmt.Fprintf(os.Stderr, "dukou: %v\n", err)
+		if !errors.Is(err, cmd.ErrReported) {
+			fmt.Fprintf(os.Stderr, "dukou: %v\n", err)
+		}
 		os.Exit(1)
 	}
 }

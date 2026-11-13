@@ -79,6 +79,52 @@ type Emitter func(Event)
 func Run(ctx context.Context, req Request, emit Emitter) (Result, error) {
 	req = withDefaults(req)
 
+	res, err := runServerPhase(ctx, req, emit)
+	if err != nil {
+		return res, err
+	}
+
+	// ── 第 3 步：配置本机 ────────────────────────────────────────
+	emit(Event{Kind: KindStepStart, Step: string(StepClient), Msg: "正在配置本机代理…"})
+	local := remote.NewLocal(req.LocalSudo)
+	defer local.Close()
+
+	ip, err := setupClient(ctx, local, req, emit)
+	if err != nil {
+		return res, fail(emit, StepClient, "本机配置失败", err)
+	}
+	res.EgressIP = ip
+	emit(Event{Kind: KindStepDone, Step: string(StepClient), Msg: "本机代理已生效，出口 IP " + ip})
+
+	// ── 第 4 步：安装 Codex ──────────────────────────────────────
+	if req.InstallCodex {
+		emit(Event{Kind: KindStepStart, Step: string(StepCodex), Msg: "正在检查 Codex…"})
+		done, err := setupCodex(ctx, local, emit)
+		if err != nil {
+			return res, fail(emit, StepCodex, "Codex 安装失败", err)
+		}
+		res.CodexDone = done
+		msg := "已安装并可用"
+		if !done {
+			msg = "已存在，跳过安装"
+		}
+		emit(Event{Kind: KindStepDone, Step: string(StepCodex), Msg: msg})
+	}
+
+	return res, nil
+}
+
+// RunServerOnly 只执行「连接服务器 + 配置服务器」两步，不碰本机。
+//
+// 单独暴露出来有两个用途：
+//   - 无界面环境（纯 CLI、服务器上跑）只需要装服务端；
+//   - CI 的 L2 真机测试要在临时 ECS 上验证服务端安装，而构建机不是目标客户端。
+func RunServerOnly(ctx context.Context, req Request, emit Emitter) (Result, error) {
+	return runServerPhase(ctx, withDefaults(req), emit)
+}
+
+// runServerPhase 是流水线的前两步：连上服务器，把服务端装好并自检。
+func runServerPhase(ctx context.Context, req Request, emit Emitter) (Result, error) {
 	var res Result
 
 	// ── 第 1 步：测试连接 ────────────────────────────────────────
@@ -126,33 +172,6 @@ func Run(ctx context.Context, req Request, emit Emitter) (Result, error) {
 		return res, fail(emit, StepServer, "服务器配置失败", err)
 	}
 	emit(Event{Kind: KindStepDone, Step: string(StepServer), Msg: "服务端已启动并自检通过"})
-
-	// ── 第 3 步：配置本机 ────────────────────────────────────────
-	emit(Event{Kind: KindStepStart, Step: string(StepClient), Msg: "正在配置本机代理…"})
-	local := remote.NewLocal(req.LocalSudo)
-	defer local.Close()
-
-	ip, err := setupClient(ctx, local, req, emit)
-	if err != nil {
-		return res, fail(emit, StepClient, "本机配置失败", err)
-	}
-	res.EgressIP = ip
-	emit(Event{Kind: KindStepDone, Step: string(StepClient), Msg: "本机代理已生效，出口 IP " + ip})
-
-	// ── 第 4 步：安装 Codex ──────────────────────────────────────
-	if req.InstallCodex {
-		emit(Event{Kind: KindStepStart, Step: string(StepCodex), Msg: "正在检查 Codex…"})
-		done, err := setupCodex(ctx, local, emit)
-		if err != nil {
-			return res, fail(emit, StepCodex, "Codex 安装失败", err)
-		}
-		res.CodexDone = done
-		msg := "已安装并可用"
-		if !done {
-			msg = "已存在，跳过安装"
-		}
-		emit(Event{Kind: KindStepDone, Step: string(StepCodex), Msg: msg})
-	}
 
 	return res, nil
 }
