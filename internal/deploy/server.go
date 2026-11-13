@@ -14,6 +14,24 @@ import (
 func setupServer(ctx context.Context, ssh *remote.SSH, info remote.OSInfo, req Request, emit Emitter) error {
 	step := string(StepServer)
 
+	// ── 服务器自身能否出网 ──────────────────────────────────────
+	// 这一层最容易被忽略：把买在中国大陆地域的实例当出口，代理装得再漂亮，
+	// 服务器自己也出不去，用户要等到最后一步才发现。放在最前面，一秒就能否掉。
+	if info.HasCurl {
+		emit(Event{Kind: KindLog, Step: step, Msg: "检查服务器能否直连海外…"})
+		code, _ := ssh.Run(
+			`curl -s -o /dev/null -w '%{http_code}' --max-time 12 https://api.openai.com/v1/models`)
+		switch strings.TrimSpace(code) {
+		case "401", "200":
+			// 401 是没带凭据时的正常应答，证明 TCP、TLS、路由全通
+			emit(Event{Kind: KindLog, Step: step, Msg: "服务器可直连 OpenAI"})
+		default:
+			return fmt.Errorf("服务器连不上 OpenAI（返回 %q）。这台机器很可能在中国大陆地域，"+
+				"或者被安全策略挡住了外网。请换成海外地域的服务器"+
+				"（新加坡、中国香港、日本、美国都可以）再试", strings.TrimSpace(code))
+		}
+	}
+
 	// ── 端口占用 ────────────────────────────────────────────────
 	emit(Event{Kind: KindLog, Step: step, Msg: fmt.Sprintf("检查 :%d 是否被占用", req.Port)})
 	occ, _ := ssh.Run(fmt.Sprintf(
