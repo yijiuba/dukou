@@ -71,3 +71,29 @@ func TestSyncBufferStringConcurrent(t *testing.T) {
 		t.Fatalf("期望 200 字节，实际 %d", len(got))
 	}
 }
+
+// TestRewriteSudo 守住 sudo 的改写位置。
+//
+// 云电脑上真实踩过：写 sysctl 配置的命令是
+//
+//	echo '…' | base64 -d > /etc/sysctl.d/99-dukou.conf
+//
+// 而 ">" 由非 root shell 解释，root 只覆盖了 echo 半句，配置一个字没写进去。
+// 后来改成 "| sudo tee"，但那个 sudo 不在行首——只给行首注入密码的实现
+// 会让它卡在等密码上。所以这里要断言：管道中间、&& 之后的 sudo 也必须被改写。
+func TestRewriteSudo(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"sudo true", "sudo -A true"},
+		{"echo 'eA==' | base64 -d | sudo tee /etc/x", "echo 'eA==' | base64 -d | sudo -A tee /etc/x"},
+		{"systemctl daemon-reload && sudo systemctl restart x", "systemctl daemon-reload && sudo -A systemctl restart x"},
+		{"(sudo cat /proc/1/cgroup)", "(sudo -A cat /proc/1/cgroup)"},
+		// 字面量不能被误伤
+		{"dukou deploy --sudo-password x", "dukou deploy --sudo-password x"},
+		{"echo sudo", "echo sudo -A"},
+	}
+	for _, c := range cases {
+		if got := rewriteSudo(c.in); got != c.want {
+			t.Errorf("rewriteSudo(%q)\n得到: %q\n期望: %q", c.in, got, c.want)
+		}
+	}
+}

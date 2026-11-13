@@ -63,6 +63,15 @@ func setupClient(ctx context.Context, local *remote.Local, req Request, emit Emi
 
 	// ── systemd 单元 ────────────────────────────────────────────
 	unit := clientUnit(req, "/usr/local/bin/gost")
+
+	// 端口占用：最常见的是「之前手工配过一套代理」。
+	// 危害不是启动失败本身，而是失败之后自检仍然通——
+	// 因为 7890 上确实有人在服务，只不过那是旧代理，出口是旧服务器。
+	// 于是工具报告「全部完成」，用户拿着一个连错地方的配置去用 Codex。
+	if err := ensurePortFree(local, unit.Name, port); err != nil {
+		return "", err
+	}
+
 	if _, err := local.Run(writeFileCommand(unit.Path(), string(unit.Render()), true)); err != nil {
 		return "", fmt.Errorf("写入服务配置失败: %w", err)
 	}
@@ -72,6 +81,21 @@ func setupClient(ctx context.Context, local *remote.Local, req Request, emit Emi
 		"sudo systemctl daemon-reload && sudo systemctl enable %s && sudo systemctl restart %s",
 		unit.Name, unit.Name)); err != nil {
 		return "", fmt.Errorf("启动本机代理服务失败: %w", err)
+	}
+
+	// restart 返回 0 只代表 systemd 收下了请求，不代表进程活下来了。
+	// 端口冲突时 gost 会立刻退出，systemd 才在几百毫秒后把状态改成 failed。
+	if state, err := local.Run("systemctl is-active " + unit.Name); err != nil ||
+		strings.TrimSpace(state) != "active" {
+		tail, _ := local.Run(fmt.Sprintf(
+			"sudo journalctl -u %s -n 12 --no-pager 2>&1 | tail -12", unit.Name))
+		return "", fmt.Errorf("服务没有起来（状态 %q）。最近的日志：\n%s",
+			strings.TrimSpace(state), strings.TrimSpace(tail))
+	}
+	// 再确认一次端口确实由我们的单元监听，而不是被别人抢着应答。
+	if pid, owner, ok, _ := portOwner(local, port); ok && owner != "" && owner != unit.Name {
+		return "", fmt.Errorf("端口 %d 仍由 %s（PID %d）监听，本机代理没有真正接管",
+			port, owner, pid)
 	}
 	emit(Event{Kind: KindLog, Step: step, Msg: "本机代理服务已启动（127.0.0.1:" + fmt.Sprint(port) + "）"})
 
@@ -125,7 +149,68 @@ func setupClient(ctx context.Context, local *remote.Local, req Request, emit Emi
 		return "", fmt.Errorf("出口 IP 为空，代理可能没生效")
 	}
 
+	// 最后一道校验：出口 IP 应当就是用户填的那台服务器。
+	// 不一致几乎一定意味着「流量走了别处」（旧代理、NAT、路由劫持）。
+	// 不直接判失败，因为云上存在 NAT 网关导致出口与公网 IP 不同的情况，
+	// 但必须显式说出来，不能让用户拿着错的配置以为成功了。
+	if req.ServerHost != "" && ip != req.ServerHost {
+		emit(Event{Kind: KindLog, Step: step, Msg: "⚠ 出口 IP 是 " + ip +
+			"，与你填的服务器 " + req.ServerHost + " 不一致，请确认流量是否走了别处"})
+	}
+
 	return ip, nil
+}
+
+// ensurePortFree 检查端口是否被「别人」占着。
+//
+// 自己上次装的服务占着不算冲突——restart 会让它把端口交出来。
+// 真正的风险是另一个服务（比如手工配的 gost-client）在上面应答：
+// 新服务 bind 失败退出，而自检照样通，拿到的是那个旧服务的出口。
+func ensurePortFree(e remote.Exec, selfUnit string, ports ...int) error {
+	for _, p := range ports {
+		pid, owner, occupied, _ := portOwner(e, p)
+		if !occupied || owner == selfUnit {
+			continue
+		}
+		if owner != "" {
+			return fmt.Errorf(
+				"本机端口 %d 已被 %s（PID %d）占用，这个服务不是 dukou 装的。\n"+
+					"请先停掉它再重试：sudo systemctl disable --now %s\n"+
+					"不停掉的话，新服务会因端口冲突启动失败，"+
+					"而自检会连到旧代理上，给出一个假的「成功」。", p, owner, pid, owner)
+		}
+		return fmt.Errorf(
+			"本机端口 %d 已被占用（PID %d）。查看占用者：sudo ss -lntp 'sport = :%d'\n"+
+				"请先停掉它再重试", p, pid, p)
+	}
+	return nil
+}
+
+// portOwner 查监听某端口的进程与它所属的 systemd 单元。
+// 读不到 PID 时 occupied 仍为 true 但 pid 为 0——端口确实有人在用，
+// 只是当前权限看不到是谁，这种情况也要拦下来。
+func portOwner(e remote.Exec, port int) (pid int, unit string, occupied bool, err error) {
+	out, err := e.Run(fmt.Sprintf(
+		`sudo ss -lntp 'sport = :%d' 2>/dev/null | grep -o 'pid=[0-9]*' | head -1`, port))
+	if err != nil {
+		return 0, "", false, err
+	}
+	line := strings.TrimSpace(out)
+	if line == "" {
+		// 没有 pid= 有两种可能：端口空着，或看不到进程信息。
+		// 用一次纯监听查询把两者区分开。
+		listen, _ := e.Run(fmt.Sprintf(
+			`sudo ss -lnt 'sport = :%d' 2>/dev/null | tail -n +2 | wc -l`, port))
+		if strings.TrimSpace(listen) == "0" {
+			return 0, "", false, nil
+		}
+		return 0, "", true, nil
+	}
+	fmt.Sscanf(line, "pid=%d", &pid)
+	cg, _ := e.Run(fmt.Sprintf(
+		`sudo cat /proc/%d/cgroup 2>/dev/null | head -1 | sed 's#.*/##'`, pid))
+	unit = strings.TrimSpace(cg)
+	return pid, unit, true, nil
 }
 
 // gnomeProxyScript 生成设置 GNOME 系统代理的命令序列。

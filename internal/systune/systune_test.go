@@ -62,8 +62,12 @@ func TestApplyVerifiesReadBack(t *testing.T) {
 	}
 }
 
-// TestApplySudoPrefix 确认本机普通用户场景下每条命令都带 sudo。
+// TestApplySudoPrefix 确认本机普通用户场景下每条命令都以 root 写入。
 // 漏掉任何一条，那个文件就写不进去，而失败点在远端很难看清。
+//
+// 注意写文件那条不是以 "sudo" 开头：它是 "echo ... | base64 -d | sudo tee"。
+// 早期版本写成 "sudo echo ... > 文件"，重定向由非 root shell 执行，
+// 于是命令返回非零、配置文件为空——这正是云电脑上真实发生过的故障。
 func TestApplySudoPrefix(t *testing.T) {
 	e := &stubExec{congestion: "bbr"}
 	msg, err := Apply(e, true)
@@ -74,8 +78,12 @@ func TestApplySudoPrefix(t *testing.T) {
 		t.Errorf("期望返回实际算法，得到 %q", msg)
 	}
 	for _, c := range e.calls {
-		if !strings.HasPrefix(c, "sudo ") {
-			t.Errorf("命令没带 sudo 前缀: %q", c)
+		if !strings.Contains(c, "sudo") {
+			t.Errorf("命令没有以 root 执行: %q", c)
+		}
+		// 重定向必须交给 root：写文件只能走 tee
+		if strings.Contains(c, "base64 -d >") {
+			t.Errorf("sudo 场景下不能用 > 重定向（非 root shell 会拒绝）: %q", c)
 		}
 	}
 }

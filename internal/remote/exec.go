@@ -9,7 +9,10 @@ package remote
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -53,8 +56,20 @@ type Exec interface {
 // Local 在本机执行命令。
 //
 // 图形界面通常以普通用户身份运行，而安装 systemd 单元需要 root，
-// 所以这里内置了 sudo 密码注入：命令里写 "sudo ..." 即可，
-// Local 会自动改成 "sudo -S" 并把密码从 stdin 喂进去。
+// 所以这里内置了 sudo 密码注入。
+//
+// 为什么用 SUDO_ASKPASS 而不是 "sudo -S + stdin"：
+// 最初的做法是把密码从 stdin 喂给 sudo -S。但只要命令里出现管道或重定向，
+// 这个方案立刻失效——
+//
+//	echo 'xxx' | base64 -d > /etc/sysctl.d/99-dukou.conf
+//
+// 这里的 ">" 是由**当前非 root shell** 执行的，与 sudo 无关，必然权限不足；
+// 而改成 "| sudo tee" 之后，sudo 的 stdin 变成了管道里的数据，
+// 密码反而送不进去。两个洞互相堵死。
+//
+// SUDO_ASKPASS 把口令从数据流上摘了出来：sudo 需要密码时自己去调脚本，
+// stdin 完整留给管道，于是 "sudo" 能出现在命令的任何位置。
 type Local struct {
 	sudoPass string
 }
@@ -68,19 +83,31 @@ func (l *Local) Label() string { return "本机" }
 
 func (l *Local) Close() error { return nil }
 
-// Run 执行命令。带 sudo 前缀的命令会自动注入密码。
+// sudoWord 匹配作为独立命令出现的 sudo，用来统一改成 sudo -A。
+// 前后都要求是分隔符，"--sudo-password" 这类字面量不会被误伤
+// （它前面是 "-"，不在分隔符集合里，误改会得到 "---A-password"）。
+var sudoWord = regexp.MustCompile(`(^|[\s;&|(])sudo(\s|$)`)
+
+// Run 执行命令。带 sudo 的命令会自动走 askpass 注入密码。
 func (l *Local) Run(cmd string) (string, error) {
-	needsSudo := strings.HasPrefix(strings.TrimSpace(cmd), "sudo ")
 	real := cmd
-	if needsSudo {
-		// -S 从 stdin 读密码，-p '' 抑制提示符，避免污染输出
-		real = strings.Replace(cmd, "sudo ", "sudo -S -p '' ", 1)
+	env := os.Environ()
+	if l.sudoPass != "" && sudoWord.MatchString(cmd) {
+		dir, err := os.MkdirTemp("", "dukou-askpass")
+		if err == nil {
+			script := filepath.Join(dir, "askpass.sh")
+			// 单引号包住变量名，避免密码里的字符被 shell 解释
+			body := "#!/bin/sh\nprintf '%s\\n' \"$DUKOU_SUDO_PASS\"\n"
+			if werr := os.WriteFile(script, []byte(body), 0o700); werr == nil {
+				defer os.RemoveAll(dir)
+				env = append(env, "SUDO_ASKPASS="+script, "DUKOU_SUDO_PASS="+l.sudoPass)
+				real = rewriteSudo(cmd)
+			}
+		}
 	}
 
 	c := exec.Command("bash", "-c", real)
-	if needsSudo && l.sudoPass != "" {
-		c.Stdin = strings.NewReader(l.sudoPass + "\n")
-	}
+	c.Env = env
 
 	var buf syncBuffer
 	c.Stdout = &buf
@@ -103,6 +130,14 @@ func (l *Local) Run(cmd string) (string, error) {
 		_ = c.Process.Kill()
 		return buf.String(), fmt.Errorf("命令超时（3 分钟）：%s", cmd)
 	}
+}
+
+// rewriteSudo 把命令里每一处 sudo 都改成 sudo -A。
+//
+// 必须逐处改而不是只改开头：真正会失败的是管道中间那个 sudo，
+// 例如 "echo … | base64 -d | sudo tee /etc/…"——它不在行首。
+func rewriteSudo(cmd string) string {
+	return sudoWord.ReplaceAllString(cmd, "${1}sudo -A${2}")
 }
 
 // firstLine 取输出的第一行非空内容，用于把冗长的报错压成一句人话。

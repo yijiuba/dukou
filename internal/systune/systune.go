@@ -69,10 +69,10 @@ func Apply(e remote.Exec, sudo bool) (string, error) {
 	}
 
 	// 2) 写配置。用 base64 传内容，避免 heredoc 与引号在远端被 shell 吃掉。
-	if _, err := e.Run(pre + writeCmd(ConfPath, Conf())); err != nil {
+	if _, err := e.Run(writeCmd(ConfPath, Conf(), sudo)); err != nil {
 		return "", fmt.Errorf("写入 %s 失败: %w", ConfPath, err)
 	}
-	if _, err := e.Run(pre + writeCmd(ModulePath, "tcp_bbr\n")); err != nil {
+	if _, err := e.Run(writeCmd(ModulePath, "tcp_bbr\n", sudo)); err != nil {
 		return "", fmt.Errorf("写入 %s 失败: %w", ModulePath, err)
 	}
 
@@ -95,7 +95,16 @@ func Apply(e remote.Exec, sudo bool) (string, error) {
 }
 
 // writeCmd 生成把内容写入文件的命令。
-func writeCmd(path, content string) string {
+//
+// 这里不能用 "sudo echo ... > 文件"：重定向符号由**发起命令的 shell** 解释，
+// 那个 shell 不是 root，于是 sysctl 配置文件一个字也写不进去，
+// 报错却长这样——"bash: 行 1: /etc/sysctl.d/99-dukou.conf: 权限不够"，
+// 看起来像是目标目录有问题，实际是 sudo 只覆盖了 echo 那半句。
+// 改成 "| sudo tee"，root 才真正拿到那个文件句柄。
+func writeCmd(path, content string, sudo bool) string {
 	enc := base64.StdEncoding.EncodeToString([]byte(content))
+	if sudo {
+		return fmt.Sprintf("echo '%s' | base64 -d | sudo tee %s >/dev/null", enc, path)
+	}
 	return fmt.Sprintf("echo '%s' | base64 -d > %s", enc, path)
 }
