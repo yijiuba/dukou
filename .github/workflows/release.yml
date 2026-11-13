@@ -1,0 +1,120 @@
+# 发版流水线：打 tag 即发版
+#
+# 用法：
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# 做三件事：
+#   1. 交叉编译 CLI 三架构（纯静态）+ 桌面版两平台
+#   2. 版本号从 tag 名注入（dukou version 显示正式版本，不再是 0.1.0-dev）
+#   3. 生成 sha256 校验和，创建 GitHub Release 并挂上全部产物——用户无需登录即可下载
+#
+# 已知坑（与 ci.yml 一致，原因见 ci.yml 注释）：
+#   - 发布物必须 CGO_ENABLED=0：目标机器可能是 musl 或没有 libc 开发包
+#   - Windows runner 默认 PowerShell 不认 \ 续行 → 相关 step 显式 shell: bash
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  # ── CLI：发布矩阵，纯静态交叉编译，版本号取自 tag ──
+  cli:
+    name: cli (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "0"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: linux, goarch: 386 }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: 交叉编译（版本号取自 tag，去掉 v 前缀）
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          go build -trimpath -ldflags "-s -w -X github.com/yijiuba/dukou/cmd.Version=$VERSION" \
+            -o dist/dukou-${{ matrix.goos }}-${{ matrix.goarch }} .
+          ls -lh dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dukou-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/
+
+  # ── 桌面版：给用户下载的成品，不需要他装 Go ──
+  desktop:
+    name: desktop (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, out: dukou-desktop-linux-amd64 }
+          - { os: windows-latest, out: dukou-desktop-windows-amd64.exe }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: 安装 Linux 图形依赖
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: 编译桌面程序
+        # Windows runner 默认 shell 是 PowerShell，不认 \ 续行。显式指定 bash。
+        shell: bash
+        run: |
+          mkdir -p dist
+          go build -tags gui -trimpath -ldflags "-s -w" \
+            -o dist/${{ matrix.out }} ./desktop
+          ls -lh dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.out }}
+          path: dist/
+
+  # ── 汇总：收齐产物 → 校验和 → 创建 Release ──
+  release:
+    name: 创建 GitHub Release
+    needs: [cli, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 收齐全部产物（合并到一个目录）
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: 生成 sha256 校验和
+        run: |
+          cd dist
+          sha256sum dukou-* > checksums.txt
+          cat checksums.txt
+
+      - name: 创建 Release 并挂产物（Release Notes 自动汇总 PR 与提交）
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*

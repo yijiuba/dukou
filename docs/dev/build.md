@@ -68,13 +68,17 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 
 ## 发版流程
 
-**现状：没有自动 Release。** CI 产物（Actions → Artifacts）必须登录 GitHub 才能下载，对用户是门槛。
+**打 tag 即发版。** `.github/workflows/release.yml` 监听 `v*` tag：
 
-待办：加 tag 触发 Release 的 workflow（`git tag v0.1.0 && git push --tags` 自动打包上传）。完成后：
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
 
-1. 用户无需登录即可下载
-2. `dukou version` 显示正式版本号
-3. 每次发版同步更新 [CHANGELOG](../../CHANGELOG.md) 的 Unreleased 段
+自动完成：三架构 CLI（版本号从 tag 注入）+ 两平台桌面版编译、sha256 校验和、创建 GitHub Release 并挂上全部产物。之后：
+
+1. 用户无需登录即可在 Releases 页面下载
+2. `dukou version` 显示正式版本号（去掉 `v` 前缀后的 tag 名）
+3. 发版前把 [CHANGELOG](../../CHANGELOG.md) 的 Unreleased 段整理成对应版本号并写上日期
 
 ## 本机环境备忘（Windows + Git Bash）
 

@@ -9,9 +9,8 @@
 - 独立 `client` 子命令是半成品（只到第 3 步），完整逻辑在 `deploy --client-only`；两条入口并存，需补完或删除其一
 - `rotate-password` / `selfcheck` / `uninstall` 为占位命令，调用即报错（`internal/manifest` 已实现，待接线）
 - PAC 自动分流未实现（仅打印计划）
-- 无 Release 流程：`dukou version` 显示 `0.1.0-dev`，下载 CI 产物需登录 GitHub
 
-## [0.1.0] - 未打 tag（当前 main）
+## [0.1.0] - 2026-11-13
 
 首个可用版本：一台海外服务器 + 一台国内机器，一条命令完成出网通道与 Codex 安装。已在新加坡实例（Alibaba Cloud Linux 4）与无影云电脑（Ubuntu 24.04）上端到端验证。
 
@@ -24,6 +23,7 @@
 - 客户端引导借道服务器下载（`--proxy-insecure`），解决"没代理却要下 GitHub"的鸡生蛋问题
 - Wails 桌面版：五个输入项一键部署，与 CLI 共用同一内核
 - CI：unit×3 + build×3 + smoke×5（ubuntu/debian/almalinux/alpine/arch）+ desktop×2，共 14 个检查项
+- 打 tag 即发版（`v*` tag 触发 Release workflow）：三架构 CLI + 两平台桌面版自动挂 GitHub Releases，附 sha256 校验和，无需登录即可下载
 
 ### 修复（均有回归测试）
 
