@@ -1,8 +1,10 @@
 package remote
 
 import (
+	"bytes"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -74,6 +76,54 @@ func DialSSH(cfg SSHConfig) (*SSH, error) {
 func (s *SSH) Label() string { return "服务器" }
 
 func (s *SSH) Close() error { return s.client.Close() }
+
+// WriteFile 把本地字节流写到远端文件。
+//
+// 用 stdin 直传而不是 base64 拼进命令行：二进制动辄几 MB，
+// 拼进命令会撞上 shell 的命令长度上限，也会把日志刷屏。
+// 这里让远端执行 cat > path，再把内容从 stdin 灌进去，
+// 二进制字节原样通过，不做任何编码。
+func (s *SSH) WriteFile(path string, data []byte, mode os.FileMode) error {
+	sess, err := s.client.NewSession()
+	if err != nil {
+		return fmt.Errorf("建立会话失败（连接可能已断开）: %w", err)
+	}
+	defer sess.Close()
+
+	sess.Stdin = bytes.NewReader(data)
+	var buf syncBuffer
+	sess.Stdout = &buf
+	sess.Stderr = &buf
+
+	// mkdir -p 覆盖目标目录不存在的情况；chmod 放在最后，
+	// 保证文件写完才设权限，避免 cat 覆盖已有文件后权限被继承。
+	cmd := fmt.Sprintf("mkdir -p %s && cat > %s && chmod %o %s",
+		dirOf(path), path, mode.Perm(), path)
+	if err := sess.Run(cmd); err != nil {
+		return fmt.Errorf("写入 %s 失败: %s", path, firstLine(buf.String()))
+	}
+
+	// 回读大小做一次确认。半截写入是这类传输最隐蔽的失败方式。
+	out, err := s.Run(fmt.Sprintf("wc -c < %s", path))
+	if err != nil {
+		return fmt.Errorf("回读 %s 失败: %w", path, err)
+	}
+	var got int64
+	_, _ = fmt.Sscanf(strings.TrimSpace(out), "%d", &got)
+	if got != int64(len(data)) {
+		return fmt.Errorf("%s 写入不完整：期望 %d 字节，实际 %d 字节", path, len(data), got)
+	}
+	return nil
+}
+
+// dirOf 取路径的目录部分。
+func dirOf(p string) string {
+	i := strings.LastIndex(p, "/")
+	if i <= 0 {
+		return "/"
+	}
+	return p[:i]
+}
 
 // Run 在远端执行命令。每次新建一个 session，避免上次的退出状态污染本次。
 func (s *SSH) Run(cmd string) (string, error) {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/yijiuba/dukou/internal/gost"
 	"github.com/yijiuba/dukou/internal/remote"
+	"github.com/yijiuba/dukou/internal/systune"
 )
 
 // setupClient 在本机（通常是云电脑）装 gost 客户端、配好代理并自检。
@@ -34,11 +35,25 @@ func setupClient(ctx context.Context, local *remote.Local, req Request, emit Emi
 		return "", fmt.Errorf("本机架构 %s 不受支持: %w", localArch, err)
 	}
 
-	emit(Event{Kind: KindLog, Step: step, Msg: "下载 gost 客户端…"})
-	if _, err := local.Run(fmt.Sprintf(
-		`mkdir -p /tmp/dukou && curl -fsSL --retry 3 --connect-timeout 10 -o /tmp/dukou/gost.tar.gz %s`,
-		shellQuote(url))); err != nil {
-		return "", fmt.Errorf("下载 gost 失败（本机访问 GitHub 可能不通）: %w", err)
+	// 先有鸡还是先有蛋：本机此刻还没有任何代理，而 gost 要从 GitHub 下载。
+	// 这台机器在国内时直连 GitHub 基本不通，所以第一份文件必须借道
+	// 已经装好的服务器——它此刻就是唯一可用的出口。
+	emit(Event{Kind: KindLog, Step: step, Msg: "下载 gost 客户端（经服务器中转）…"})
+	bootstrap := fmt.Sprintf("-x https://%s:%d --proxy-insecure -U %s:%s",
+		req.ServerHost, req.Port, req.User, req.Password)
+	viaProxy := fmt.Sprintf(
+		`mkdir -p /tmp/dukou && curl -fsSL %s --retry 2 --connect-timeout 10 --max-time 300 -o /tmp/dukou/gost.tar.gz %s`,
+		bootstrap, shellQuote(url))
+	if _, err := local.Run(viaProxy); err != nil {
+		emit(Event{Kind: KindLog, Step: step, Msg: "经服务器下载失败，改试直连…"})
+		direct := fmt.Sprintf(
+			`mkdir -p /tmp/dukou && curl -fsSL --retry 2 --connect-timeout 8 --max-time 180 -o /tmp/dukou/gost.tar.gz %s`,
+			shellQuote(url))
+		if _, err2 := local.Run(direct); err2 != nil {
+			return "", fmt.Errorf("下载 gost 失败：本机直连 GitHub 不通，"+
+				"经服务器 %s:%d 中转也失败。请检查服务器是否正常: %v",
+				req.ServerHost, req.Port, err)
+		}
 	}
 	if _, err := local.Run(
 		`tar -xzf /tmp/dukou/gost.tar.gz -C /tmp/dukou && ` +
@@ -51,11 +66,23 @@ func setupClient(ctx context.Context, local *remote.Local, req Request, emit Emi
 	if _, err := local.Run(writeFileCommand(unit.Path(), string(unit.Render()), true)); err != nil {
 		return "", fmt.Errorf("写入服务配置失败: %w", err)
 	}
+	// restart 而非 enable --now：服务已在跑时 --now 不会重启，
+	// 配置改了却还在用旧值——这是最难自查的一类"改好了"。
 	if _, err := local.Run(fmt.Sprintf(
-		"sudo systemctl daemon-reload && sudo systemctl enable --now %s", unit.Name)); err != nil {
+		"sudo systemctl daemon-reload && sudo systemctl enable %s && sudo systemctl restart %s",
+		unit.Name, unit.Name)); err != nil {
 		return "", fmt.Errorf("启动本机代理服务失败: %w", err)
 	}
 	emit(Event{Kind: KindLog, Step: step, Msg: "本机代理服务已启动（127.0.0.1:" + fmt.Sprint(port) + "）"})
+
+	// ── 内核调优 ────────────────────────────────────────────────
+	// 客户端同样要调：上传方向（请求体、模型流式响应的 TCP 窗口）也在本机。
+	emit(Event{Kind: KindLog, Step: step, Msg: "调优本机内核 TCP 参数…"})
+	if msg, err := systune.Apply(local, true); err != nil {
+		emit(Event{Kind: KindLog, Step: step, Msg: "本机内核调优未生效（可用但偏慢）：" + err.Error()})
+	} else {
+		emit(Event{Kind: KindLog, Step: step, Msg: "拥塞算法 " + msg})
+	}
 
 	// ── 系统代理 ────────────────────────────────────────────────
 	// 系统代理只影响图形界面程序（浏览器）；Codex 这类命令行工具读的是

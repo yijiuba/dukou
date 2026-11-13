@@ -23,6 +23,7 @@ type deployOptions struct {
 	password string
 
 	serverOnly bool
+	clientOnly bool
 	codex      bool
 }
 
@@ -39,6 +40,7 @@ func runDeploy(args []string) error {
 	fs.StringVar(&o.user, "user", "dukou", "代理用户名")
 	fs.StringVar(&o.password, "password", "", "代理密码，留空自动生成")
 	fs.BoolVar(&o.serverOnly, "server-only", false, "只配服务器，不配置本机")
+	fs.BoolVar(&o.clientOnly, "client-only", false, "只配本机，不动服务器（服务器已装好时用）")
 	fs.BoolVar(&o.codex, "codex", false, "顺带安装 Codex")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -59,6 +61,9 @@ func runDeploy(args []string) error {
 		Password:     o.password,
 	}
 
+	if o.clientOnly && o.server == "" {
+		return fmt.Errorf("--client-only 也需要 --server 指定服务器地址（客户端要连它）")
+	}
 	if o.sshKeyFile != "" {
 		b, err := os.ReadFile(o.sshKeyFile)
 		if err != nil {
@@ -75,9 +80,12 @@ func runDeploy(args []string) error {
 
 	var res deploy.Result
 	var err error
-	if o.serverOnly {
+	switch {
+	case o.clientOnly:
+		res, err = deploy.RunClientOnly(ctx, req, emit)
+	case o.serverOnly:
 		res, err = deploy.RunServerOnly(ctx, req, emit)
-	} else {
+	default:
 		res, err = deploy.Run(ctx, req, emit)
 	}
 	fmt.Println()

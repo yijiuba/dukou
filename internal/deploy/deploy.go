@@ -114,6 +114,45 @@ func Run(ctx context.Context, req Request, emit Emitter) (Result, error) {
 	return res, nil
 }
 
+// RunClientOnly 只执行「配置本机」这一步，完全不动服务器。
+//
+// 用在服务器已经部署好的场合：客户端机器不需要、也不应该拿到服务器的 SSH 凭据。
+func RunClientOnly(ctx context.Context, req Request, emit Emitter) (Result, error) {
+	req = withDefaults(req)
+	res := Result{
+		ServerAddr: req.ServerHost,
+		Port:       req.Port,
+		User:       req.User,
+		Password:   req.Password,
+	}
+
+	emit(Event{Kind: KindStepStart, Step: string(StepClient), Msg: "正在配置本机代理…"})
+	local := remote.NewLocal(req.LocalSudo)
+	defer local.Close()
+
+	ip, err := setupClient(ctx, local, req, emit)
+	if err != nil {
+		return res, fail(emit, StepClient, "本机配置失败", err)
+	}
+	res.EgressIP = ip
+	emit(Event{Kind: KindStepDone, Step: string(StepClient), Msg: "本机代理已生效，出口 IP " + ip})
+
+	if req.InstallCodex {
+		emit(Event{Kind: KindStepStart, Step: string(StepCodex), Msg: "正在检查 Codex…"})
+		done, err := setupCodex(ctx, local, emit)
+		if err != nil {
+			return res, fail(emit, StepCodex, "Codex 安装失败", err)
+		}
+		res.CodexDone = done
+		msg := "已安装并可用"
+		if !done {
+			msg = "已存在，跳过安装"
+		}
+		emit(Event{Kind: KindStepDone, Step: string(StepCodex), Msg: msg})
+	}
+	return res, nil
+}
+
 // RunServerOnly 只执行「连接服务器 + 配置服务器」两步，不碰本机。
 //
 // 单独暴露出来有两个用途：

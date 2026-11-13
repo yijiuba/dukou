@@ -8,6 +8,8 @@ import (
 
 	"github.com/yijiuba/dukou/internal/gost"
 	"github.com/yijiuba/dukou/internal/remote"
+	"github.com/yijiuba/dukou/internal/systune"
+	"github.com/yijiuba/dukou/internal/systemd"
 )
 
 // setupServer 在海外服务器上装 gost 服务端并验证。
@@ -37,8 +39,18 @@ func setupServer(ctx context.Context, ssh *remote.SSH, info remote.OSInfo, req R
 	occ, _ := ssh.Run(fmt.Sprintf(
 		`ss -lnt 2>/dev/null | awk 'NR>1{print $4}' | grep -c ':%d$' || true`, req.Port))
 	if n, _ := strconv.Atoi(strings.TrimSpace(occ)); n > 0 {
-		return fmt.Errorf("端口 %d 已被占用。请换一个端口（在高级设置里改），"+
-			"或先停掉占用它的程序", req.Port)
+		// 占着端口的可能是它自己：用户重跑一次本工具，上一次装的 dukou.service
+		// 还在监听。这时候报"端口被占用"毫无意义，只会把人堵在门外。
+		unitName := systemd.ServiceName("server")
+		own, _ := ssh.Run(fmt.Sprintf(
+			`[ -f /etc/systemd/system/%s.service ] && echo own || echo other`, unitName))
+		if strings.TrimSpace(own) != "own" {
+			return fmt.Errorf("端口 %d 已被占用，占用者不是本工具。请换一个端口"+
+				"（高级设置里改），或先停掉那个程序：ss -lntp | grep :%d",
+				req.Port, req.Port)
+		}
+		emit(Event{Kind: KindLog, Step: step, Msg: fmt.Sprintf(
+			"检测到已安装的 %s，将覆盖配置并重启", unitName)})
 	}
 
 	// ── 安装 gost ───────────────────────────────────────────────
@@ -74,13 +86,27 @@ func setupServer(ctx context.Context, ssh *remote.SSH, info remote.OSInfo, req R
 	binPath = strings.TrimSpace(binPath)
 	emit(Event{Kind: KindLog, Step: step, Msg: "gost 已安装到 " + binPath})
 
+	// ── 内核调优 ────────────────────────────────────────────────
+	// 不调这个，交付的是"能连上但只有几十 KB/s"的东西。
+	// 失败不阻断：代理本身仍然可用，只是慢，如实告知即可。
+	emit(Event{Kind: KindLog, Step: step, Msg: "调优内核 TCP 参数…"})
+	if msg, err := systune.Apply(ssh, false); err != nil {
+		emit(Event{Kind: KindLog, Step: step, Msg: "内核调优未生效（代理仍可用，但速度会明显偏低）：" + err.Error()})
+	} else {
+		emit(Event{Kind: KindLog, Step: step, Msg: "拥塞算法 " + msg})
+	}
+
 	// ── systemd 单元 ────────────────────────────────────────────
 	unit := serverUnit(req, binPath)
 	if _, err := ssh.Run(writeFileCommand(unit.Path(), string(unit.Render()), false)); err != nil {
 		return fmt.Errorf("写入 systemd 单元失败: %w", err)
 	}
+	// enable 只负责开机自启；restart 才是让新配置生效的那一步。
+	// 用 enable --now 的话，服务已经在跑就不会重启，密码改了却还是旧的——
+	// 这正是手工排障时最坑的一种"看起来改好了"。
 	if _, err := ssh.Run(fmt.Sprintf(
-		"systemctl daemon-reload && systemctl enable --now %s", unit.Name)); err != nil {
+		"systemctl daemon-reload && systemctl enable %s && systemctl restart %s",
+		unit.Name, unit.Name)); err != nil {
 		return fmt.Errorf("启动服务失败: %w", err)
 	}
 	emit(Event{Kind: KindLog, Step: step, Msg: "服务已启动（开机自启）"})
