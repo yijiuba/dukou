@@ -167,6 +167,9 @@ jobs:
           sudo apt-get install -y -qq libgtk-3-dev libwebkit2gtk-4.1-dev
 
       - name: 编译桌面程序
+        # Windows runner 默认 shell 是 PowerShell，不认 `\` 续行，
+        # 会把 -o 当成一个命令去执行。显式指定 bash。
+        shell: bash
         run: |
           mkdir -p dist
           go build -tags gui -trimpath -ldflags "-s -w" \
