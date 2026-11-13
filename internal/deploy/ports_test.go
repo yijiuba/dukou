@@ -105,3 +105,28 @@ func TestEnsurePortFreeIdle(t *testing.T) {
 		t.Fatalf("端口空闲不应报错: %v", err)
 	}
 }
+
+// TestSameUnitToleratesSuffix 守住这条真实故障：
+// cgroup 里是 "dukou-client.service"，Unit.Name 是 "dukou-client"。
+// 早期版本直接字符串比较，于是重跑时被自己的服务拦下，报
+// 「端口 7890 已被 dukou-client.service 占用，这个服务不是 dukou 装的」——
+// 一句自相矛盾的话，用户完全无从下手。
+func TestSameUnitToleratesSuffix(t *testing.T) {
+	e := &fakePortExec{listen: true, pid: 16388, unit: "dukou-client.service"}
+	if err := ensurePortFree(e, "dukou-client", 7890); err != nil {
+		t.Fatalf("自家服务（带 .service 后缀）不应被判成他人: %v", err)
+	}
+	// 反向也成立：调用方带后缀、读回来不带
+	e2 := &fakePortExec{listen: true, pid: 1, unit: "dukou-client"}
+	if err := ensurePortFree(e2, "dukou-client.service", 7890); err != nil {
+		t.Fatalf("反向比较也应通过: %v", err)
+	}
+}
+
+// TestEnsurePortFreeUnknownOwnerNotSelf 确认「看不到占用者」不会被当成自己人。
+func TestEnsurePortFreeUnknownOwnerNotSelf(t *testing.T) {
+	e := &fakePortExec{listen: true, pid: 0, unit: ""}
+	if err := ensurePortFree(e, "dukou-client", 7890); err == nil {
+		t.Fatal("owner 为空时必须拦下，不能默认放行")
+	}
+}

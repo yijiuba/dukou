@@ -27,6 +27,19 @@ func setupClient(ctx context.Context, local *remote.Local, req Request, emit Emi
 			"（安装服务需要管理员权限）: %w", err)
 	}
 
+	// ── 单元名与端口占用 ────────────────────────────────────────
+	unit := clientUnit(req, "/usr/local/bin/gost")
+
+	// 端口占用：最常见的是「之前手工配过一套代理」。
+	// 危害不是启动失败本身，而是失败之后自检仍然通——
+	// 因为 7890 上确实有人在服务，只不过那是旧代理，出口是旧服务器。
+	// 于是工具报告「全部完成」，用户拿着一个连错地方的配置去用 Codex。
+	//
+	// 这一步放在下载之前：端口不通就别白等一次下载。
+	if err := ensurePortFree(local, unit.Name, port, port+1); err != nil {
+		return "", err
+	}
+
 	// ── 安装 gost 客户端 ────────────────────────────────────────
 	localArch := runtime.GOARCH
 	channel := gost.ChannelFor("unknown") // 本机统一走静态二进制，最稳
@@ -62,16 +75,6 @@ func setupClient(ctx context.Context, local *remote.Local, req Request, emit Emi
 	}
 
 	// ── systemd 单元 ────────────────────────────────────────────
-	unit := clientUnit(req, "/usr/local/bin/gost")
-
-	// 端口占用：最常见的是「之前手工配过一套代理」。
-	// 危害不是启动失败本身，而是失败之后自检仍然通——
-	// 因为 7890 上确实有人在服务，只不过那是旧代理，出口是旧服务器。
-	// 于是工具报告「全部完成」，用户拿着一个连错地方的配置去用 Codex。
-	if err := ensurePortFree(local, unit.Name, port); err != nil {
-		return "", err
-	}
-
 	if _, err := local.Run(writeFileCommand(unit.Path(), string(unit.Render()), true)); err != nil {
 		return "", fmt.Errorf("写入服务配置失败: %w", err)
 	}
@@ -93,7 +96,7 @@ func setupClient(ctx context.Context, local *remote.Local, req Request, emit Emi
 			strings.TrimSpace(state), strings.TrimSpace(tail))
 	}
 	// 再确认一次端口确实由我们的单元监听，而不是被别人抢着应答。
-	if pid, owner, ok, _ := portOwner(local, port); ok && owner != "" && owner != unit.Name {
+	if pid, owner, ok, _ := portOwner(local, port); ok && owner != "" && !sameUnit(owner, unit.Name) {
 		return "", fmt.Errorf("端口 %d 仍由 %s（PID %d）监听，本机代理没有真正接管",
 			port, owner, pid)
 	}
@@ -161,6 +164,16 @@ func setupClient(ctx context.Context, local *remote.Local, req Request, emit Emi
 	return ip, nil
 }
 
+// sameUnit 比较两个 systemd 单元名。
+//
+// cgroup 里读到的是 "dukou-client.service"，而 Unit.Name 按约定不带后缀。
+// 直接字符串比较会永远不相等，把自家服务误判成别人——
+// 于是一个完全正常的重跑被拦下："端口 7890 已被 dukou-client.service 占用，
+// 这个服务不是 dukou 装的"。这句话自己就自相矛盾。
+func sameUnit(a, b string) bool {
+	return strings.TrimSuffix(a, ".service") == strings.TrimSuffix(b, ".service")
+}
+
 // ensurePortFree 检查端口是否被「别人」占着。
 //
 // 自己上次装的服务占着不算冲突——restart 会让它把端口交出来。
@@ -169,7 +182,8 @@ func setupClient(ctx context.Context, local *remote.Local, req Request, emit Emi
 func ensurePortFree(e remote.Exec, selfUnit string, ports ...int) error {
 	for _, p := range ports {
 		pid, owner, occupied, _ := portOwner(e, p)
-		if !occupied || owner == selfUnit {
+		// owner 为空表示看不到占用者，不能当成"自己的"放过
+		if !occupied || (owner != "" && sameUnit(owner, selfUnit)) {
 			continue
 		}
 		if owner != "" {
