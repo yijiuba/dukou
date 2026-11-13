@@ -11,7 +11,9 @@ jobs:
   #
   # 注意：这里不能设 CGO_ENABLED=0。-race 检测器必须在 cgo 下工作，
   # 否则 go test 会直接报 "-race requires cgo" 而整包失败（本仓库踩过）。
-  # Windows 宿主的 gcc 时有时无，所以那边退化成不带 -race 的普通测试。
+  # 竞态检测只在 Linux 跑：macOS arm64 上 Go 1.22 的 -race 测试二进制缺
+  # LC_UUID，dyld 直接 abort trap，属工具链问题而非代码问题；
+  # Windows 宿主 gcc 时有时无。非 Linux 平台只验证能编译能过测试。
   unit:
     name: unit (${{ matrix.os }})
     strategy:
@@ -30,12 +32,12 @@ jobs:
       - name: go vet
         run: go vet ./...
 
-      - name: go test（带竞态检测）
-        if: runner.os != 'Windows'
+      - name: go test（Linux，带竞态检测）
+        if: runner.os == 'Linux'
         run: go test ./... -race -count=1
 
-      - name: go test（Windows 无竞态检测）
-        if: runner.os == 'Windows'
+      - name: go test（macOS / Windows，不带竞态检测）
+        if: runner.os != 'Linux'
         run: go test ./... -count=1
 
   # ── 交叉编译：发布矩阵，同时为 smoke 提供静态二进制 ──
