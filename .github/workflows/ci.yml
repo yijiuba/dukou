@@ -12,8 +12,11 @@ jobs:
   # 注意：这里不能设 CGO_ENABLED=0。-race 检测器必须在 cgo 下工作，
   # 否则 go test 会直接报 "-race requires cgo" 而整包失败（本仓库踩过）。
   # 竞态检测只在 Linux 跑：macOS arm64 上 Go 1.22 的 -race 测试二进制缺
-  # LC_UUID，dyld 直接 abort trap，属工具链问题而非代码问题；
-  # Windows 宿主 gcc 时有时无。非 Linux 平台只验证能编译能过测试。
+  # LC_UUID，dyld 直接 abort trap，属工具链问题而非代码问题。
+  #
+  # macOS 还要额外加 -tags netgo：只有 internal/gost 导入 net/http，
+  # CGO_ENABLED=1 时 net 包会拉 cgo 解析器，链接出的测试二进制同样缺
+  # LC_UUID 而 abort。netgo 强制纯 Go 解析器，不用 cgo 就恢复了。
   unit:
     name: unit (${{ matrix.os }})
     strategy:
@@ -36,8 +39,12 @@ jobs:
         if: runner.os == 'Linux'
         run: go test ./... -race -count=1
 
-      - name: go test（macOS / Windows，不带竞态检测）
-        if: runner.os != 'Linux'
+      - name: go test（macOS，纯 Go 解析器）
+        if: runner.os == 'macOS'
+        run: go test ./... -tags netgo -count=1
+
+      - name: go test（Windows）
+        if: runner.os == 'Windows'
         run: go test ./... -count=1
 
   # ── 交叉编译：发布矩阵，同时为 smoke 提供静态二进制 ──
