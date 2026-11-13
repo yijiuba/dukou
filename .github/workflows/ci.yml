@@ -1,0 +1,131 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CGO_ENABLED: "0"
+
+jobs:
+  # ── L0 单元测试：三个宿主平台各跑一遍，确保没有平台相关的编译错误 ──
+  unit:
+    name: unit (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test ./... -race -count=1
+
+  # ── 交叉编译：发布矩阵，同时为 smoke 提供静态二进制 ──
+  build:
+    name: build (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: linux, goarch: 386 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: 交叉编译（纯静态，无 CGO）
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -trimpath -ldflags "-s -w -X github.com/yijiuba/dukou/cmd.Version=0.1.0-ci" \
+            -o dist/dukou-${{ matrix.goos }}-${{ matrix.goarch }} .
+          ls -lh dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dukou-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/
+
+  # ── L1 容器矩阵：把静态二进制丢进真实发行版里跑 ──
+  #
+  # 这一层有两个目的，第二个比第一个更重要：
+  #
+  #   1. 确认在陌生发行版上不崩溃、家族识别正确
+  #   2. 证明「静态二进制兜底」真的成立 —— Alpine 用 musl libc，
+  #      glibc 编译的程序在那里根本起不来。这个 job 能在 Alpine 里跑通，
+  #      就说明任何 Linux 至少有 tar.gz 这一条路可走。
+  #
+  # 只跑只读操作：doctor、--dry-run、help。不装任何东西、不改系统。
+  smoke:
+    name: smoke (${{ matrix.image }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: "ubuntu:24.04",         family: debian }
+          - { image: "debian:12",            family: debian }
+          - { image: "almalinux:9",          family: rhel   }
+          - { image: "alpine:3.20",          family: alpine }
+          - { image: "archlinux:latest",     family: arch   }
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dukou-linux-amd64
+          path: /tmp/bin
+
+      - name: 静态二进制应能直接运行（不依赖目标系统的 libc）
+        run: |
+          chmod +x /tmp/bin/dukou-linux-amd64
+          /tmp/bin/dukou-linux-amd64 version
+
+      - name: doctor 应识别出正确的发行版家族
+        run: |
+          /tmp/bin/dukou-linux-amd64 doctor > /tmp/doctor.txt 2>&1 || true
+          cat /tmp/doctor.txt
+          grep -q "${{ matrix.family }}" /tmp/doctor.txt \
+            && echo "✓ 家族识别正确: ${{ matrix.family }}" \
+            || { echo "✗ 家族识别错误，期望 ${{ matrix.family }}"; exit 1; }
+
+      - name: server --dry-run 应走完计划且不碰系统
+        run: |
+          /tmp/bin/dukou-linux-amd64 server --dry-run > /tmp/plan.txt 2>&1 || true
+          cat /tmp/plan.txt
+          grep -q "dry-run：" /tmp/plan.txt || { echo "✗ dry-run 未完成"; exit 1; }
+          if [ -f /etc/dukou.conf ]; then echo "✗ dry-run 不应写入配置"; exit 1; fi
+          if [ -f /var/lib/dukou/manifest.json ]; then echo "✗ dry-run 不应写清单"; exit 1; fi
+          echo "✓ dry-run 未产生任何副作用"
+
+      - name: help 与 version
+        run: |
+          /tmp/bin/dukou-linux-amd64 help
+          /tmp/bin/dukou-linux-amd64 version
+
+  # ── 全绿才允许合并 ──
+  ci-ok:
+    name: ci-ok
+    needs: [unit, build, smoke]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "全部通过"
