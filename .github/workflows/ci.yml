@@ -6,11 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 
-env:
-  CGO_ENABLED: "0"
-
 jobs:
   # ── L0 单元测试：三个宿主平台各跑一遍，确保没有平台相关的编译错误 ──
+  #
+  # 注意：这里不能设 CGO_ENABLED=0。-race 检测器必须在 cgo 下工作，
+  # 否则 go test 会直接报 "-race requires cgo" 而整包失败（本仓库踩过）。
+  # Windows 宿主的 gcc 时有时无，所以那边退化成不带 -race 的普通测试。
   unit:
     name: unit (${{ matrix.os }})
     strategy:
@@ -19,9 +20,9 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -29,13 +30,21 @@ jobs:
       - name: go vet
         run: go vet ./...
 
-      - name: go test
+      - name: go test（带竞态检测）
+        if: runner.os != 'Windows'
         run: go test ./... -race -count=1
+
+      - name: go test（Windows 无竞态检测）
+        if: runner.os == 'Windows'
+        run: go test ./... -count=1
 
   # ── 交叉编译：发布矩阵，同时为 smoke 提供静态二进制 ──
   build:
     name: build (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ubuntu-latest
+    # 发布物必须是纯静态的：目标机器可能是 musl 或干脆没有 libc 开发包
+    env:
+      CGO_ENABLED: "0"
     strategy:
       fail-fast: false
       matrix:
@@ -44,8 +53,8 @@ jobs:
           - { goos: linux, goarch: arm64 }
           - { goos: linux, goarch: 386 }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
