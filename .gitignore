@@ -1,0 +1,21 @@
+# 编译产物
+/dukou
+/dukou.exe
+/dukou-linux-*
+/bin/
+/dist/
+
+# 测试与覆盖率
+*.test
+*.out
+coverage.html
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# 本地临时文件
+/tmp/
+*.log
