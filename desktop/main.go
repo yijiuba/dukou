@@ -6,6 +6,7 @@ import (
 	"embed"
 	"os"
 
+	"fyne.io/systray"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -32,6 +33,11 @@ func main() {
 
 	app := NewApp()
 
+	// R1（§十）：托盘先行启动，与 Wails 主循环共存。
+	// 退出路径：托盘"退出渡口" → runtime.Quit → wails.Run 返回 → systray 兜底清理。
+	startTray(app)
+	defer systray.Quit()
+
 	err := wails.Run(&options.App{
 		Title:     "渡口 · 一键部署",
 		Width:     1180,
@@ -41,8 +47,9 @@ func main() {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		OnStartup: app.startup,
-		Bind:      []interface{}{app},
+		OnStartup:     app.startup,
+		OnBeforeClose: app.onBeforeClose,
+		Bind:          []interface{}{app},
 	})
 	if err != nil {
 		println("启动失败:", err.Error())

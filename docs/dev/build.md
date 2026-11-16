@@ -49,6 +49,21 @@ wails dev -m -tags gui
 
 `wails dev` / `wails build` 会在 `desktop/build/` 和 `desktop/frontend/wailsjs/` 生成中间产物，两者已 gitignore，不入库（前端源码只有 `dist/`，零构建）。
 
+### 托盘与自测模式
+
+关窗不退出：点 X 隐藏到托盘，退出只能走托盘菜单"退出渡口"（`onBeforeClose` 拦截，
+`App.quitting` 标记放行真退出）。托盘用的是外挂 `fyne.io/systray`（Wails v2 无托盘 API，§十 R1），
+在独立 goroutine 里跑自己的消息泵，与 Wails 主循环共存。
+
+托盘自动化自测（验证隐藏/唤回的完整时序，模拟菜单动作走的同一批函数）：
+
+```bash
+cd desktop && DUKOU_TRAY_SELFTEST=1 wails dev -m -tags gui
+```
+
+时序：3s 隐藏 → 6s 唤回 → 12s 再次唤回，日志带 `[tray]` 前缀；配合外部脚本对窗口句柄
+发 `WM_CLOSE` 可覆盖"关窗→隐藏→唤回"全链路。
+
 
 ## 交叉编译（发布物）
 

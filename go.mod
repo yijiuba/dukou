@@ -3,6 +3,7 @@ module github.com/yijiuba/dukou
 go 1.22.0
 
 require (
+	fyne.io/systray v1.11.0
 	github.com/wailsapp/wails/v2 v2.10.1
 	golang.org/x/crypto v0.33.0
 )
