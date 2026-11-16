@@ -488,16 +488,16 @@ window.addEventListener('keydown',function(e){
           <span style="flex:1">检测到上次异常退出留下的代理设置，浏览器可能上不了网。<b>一键清理</b>会还原到之前的配置。</span>
           <button class="btn sm" onclick="cleanupResidue()">一键清理</button>
         </div>
-        <div class="upd-bar" id="updHome">
+        <div class="upd-bar" id="updHome" style="display:none">
           <span class="ub-ico"><svg class="i sm"><use href="#i-sparkle"/></svg></span>
-          <b>v0.2.1 可用</b>
-          <span class="ub-desc">多服务器批量体检 · 备份提速</span>
+          <b id="updVer">有新版可用</b>
+          <span class="ub-desc" id="updDesc"></span>
           <a class="ub-link" onclick="openUpdate()">查看更新 ›</a>
           <a class="ub-x" onclick="dismissUpdate()" title="忽略此版本">忽略</a>
         </div>
 
         <div class="card conn-card">
-          <div class="route-chip"><svg class="i sm"><use href="#i-globe"/></svg> 新加坡 · 腾讯云轻量<a href="javascript:void(0)" onclick="nav('servers')">切换</a></div>
+          <div class="route-chip"><svg class="i sm"><use href="#i-globe"/></svg> <span id="routeName">未选择线路</span><a href="javascript:void(0)" onclick="nav('servers')">切换</a></div>
           <div class="connect-wrap">
             <div class="power" id="powerBtn" onclick="toggleConn()"><svg viewBox="0 0 24 24" width="40%" height="40%" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3.2v8.6"/><path d="M6.3 6.6a8.2 8.2 0 1 0 11.4 0"/></svg></div>
             <div class="conn-state" id="connState">未连接 · 当前为直连（国内访问正常）</div>
@@ -517,7 +517,7 @@ window.addEventListener('keydown',function(e){
 
         <div class="quick">
           <div class="q" onclick="nav('network')"><div class="e"><svg class="i lg"><use href="#i-globe"/></svg></div><div><b>网络配置</b><span>添加 / 重新部署服务器</span></div></div>
-          <div class="q" onclick="nav('servers')"><div class="e"><svg class="i lg"><use href="#i-server"/></svg></div><div><b>我的代理服务器</b><span>3 台 · 使用中：新加坡</span></div></div>
+          <div class="q" onclick="nav('servers')"><div class="e"><svg class="i lg"><use href="#i-server"/></svg></div><div><b>我的代理服务器</b><span id="qServers">清单加载中…</span></div></div>
           <div class="q" onclick="nav('ai')"><div class="e"><svg class="i lg"><use href="#i-bot"/></svg></div><div><b>AI 工具</b><span>Codex / Claude 一键安装</span></div></div>
           <div class="q" onclick="nav('shop')"><div class="e"><svg class="i lg"><use href="#i-cart"/></svg></div><div><b>还没有服务器？</b><span>海外服务器 ¥99/年起</span></div></div>
         </div>
@@ -538,7 +538,7 @@ window.addEventListener('keydown',function(e){
           <h3>服务器接入方式</h3>
           <div class="seg" id="segNet">
             <div class="on" onclick="segNet(this,'ssh')">SSH 密码 / 密钥</div>
-            <div onclick="segNet(this,'ak')">AccessKey（自动开通）</div>
+            <div style="opacity:.45;cursor:not-allowed" title="AccessKey 自动开通随 v0.4 提供" onclick="akNotYet()">AccessKey（自动开通）</div>
           </div>
           <div id="net-ssh">
             <div class="form-grid">
@@ -552,7 +552,7 @@ window.addEventListener('keydown',function(e){
             <div class="form-grid">
               <div class="field"><label>云厂商（一期）</label><select><option>腾讯云（轻量海外）</option><option disabled>阿里云（二期）</option></select></div>
               <div class="field"><label>地域</label><select><option>新加坡</option><option>东京</option><option>硅谷</option></select></div>
-              <div class="field"><label>SecretId</label><input value="AKID****（演示）"></div>
+              <div class="field"><label>SecretId</label><input placeholder="v0.4 提供，暂不可用"></div>
               <div class="field"><label>SecretKey</label><input type="password" value="********"></div>
             </div>
             <p style="font-size:12px;color:#6b7280;margin-top:10px">AccessKey 仅存本机，加密保存。可自动完成：购买引导 → 创建实例 → 放行安全组（消灭手动开 8443 这一步）。</p>
@@ -588,13 +588,13 @@ window.addEventListener('keydown',function(e){
         </div>
 
         <div class="card">
-          <h3>批量操作（订阅功能）</h3>
+          <h3>批量操作</h3>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn sm ghost" onclick="runBatchCheck()">批量体检全部服务器</button>
-            <button class="btn sm ghost" onclick="openSync()">同步配置到全部服务器</button>
+            <button class="btn sm ghost" id="batchBtn" onclick="runBatchCheck()">批量体检全部服务器</button>
+            <button class="btn sm ghost" disabled title="需要服务端批量改写能力，随账号体系在 v0.3 提供">同步配置到全部服务器</button>
             <button class="btn sm ghost" onclick="openModal('exportModal')">导出服务器清单</button>
           </div>
-          <div style="font-size:12px;color:#6b7280;margin-top:10px">「同步配置」用于多机同密码场景：改一次密码，全线路同步，避免逐台手改。</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:10px">批量体检逐台执行服务端诊断（L1~L4），每条线路约 3~8 秒，不会同时打满带宽。</div>
         </div>
       </div>
 
@@ -842,55 +842,47 @@ window.addEventListener('keydown',function(e){
         <div class="card">
           <h3>代理模式</h3>
           <div class="radio-row">
-            <div class="radio-card on"><b>手动连接（默认）</b><span>开机后打开 App 点「连接」，掌控感最强</span></div>
-            <div class="radio-card"><b>自动连接</b><span>App 启动后立即连接，省心</span></div>
+            <div class="radio-card on"><b>手动连接（默认）</b><span>打开 App 点「连接」，掌控感最强（v0.2 仅支持这种）</span></div>
+            <div class="radio-card" style="opacity:.55;cursor:not-allowed" title="v0.3 提供"><b>自动连接</b><span>App 启动后立即连接，省心（v0.3 提供）</span></div>
           </div>
-          <div class="set-row"><div>开机自启 dukou<div class="set-row-sub">自启到托盘，不会自动连接（除非开启上方自动连接）</div></div><div class="switch on" onclick="this.classList.toggle('on')"></div></div>
-          <div class="set-row"><div>退出 App 时断开代理<div class="set-row-sub">断开后自动清理系统代理与环境变量，还原干净直连</div></div><div class="switch on" onclick="this.classList.toggle('on')"></div></div>
-          <div class="set-row"><div>国内分流（PAC + 本地 bypass）<div class="set-row-sub">国内站点直连不走代理，浏览器与终端双生效</div></div><div class="switch on" onclick="this.classList.toggle('on')"></div></div>
+          <div class="set-row"><div>开机自启 dukou<div class="set-row-sub">v0.2 未实现；需要时把快捷方式放进系统启动目录</div></div><div class="switch" style="opacity:.45;cursor:default" title="v0.2 未实现"></div></div>
+          <div class="set-row"><div>退出 App 时断开代理<div class="set-row-sub">已固定开启：退出时停掉 gost 并逐项还原系统代理</div></div><div class="switch on" style="opacity:.6;cursor:default" title="固定开启"></div></div>
+          <div class="set-row"><div>国内分流（PAC + 固定代理兜底）<div class="set-row-sub">国内站点直连不走代理；PAC 加载失败时仍有固定代理可用</div></div><div class="switch on" style="opacity:.6;cursor:default" title="已内置并默认启用"></div></div>
         </div>
         <div class="card">
-          <h3>备份与迁移 <span class="tag" style="margin-left:6px">订阅功能</span></h3>
+          <h3>备份与迁移 <span class="tag" style="margin-left:6px">本地加密</span></h3>
           <div class="backup-item">
             <div class="bi-ico"><svg class="i"><use href="#i-archive"/></svg></div>
             <div class="bi-main">
               <b>一键备份</b>
-              <div>把全部服务器配置、订阅信息、偏好设置打包为一个加密文件（.dukoubak），导出到你选择的目录</div>
+              <div>把全部服务器配置、凭据与偏好设置打包成一个加密文件（.dukoubak），可拷到新电脑恢复</div>
             </div>
-            <button class="btn sm">立即备份</button>
+            <button class="btn sm" id="bkBtn" onclick="startBackup()">立即备份</button>
           </div>
           <div class="backup-item">
             <div class="bi-ico"><svg class="i"><use href="#i-download"/></svg></div>
             <div class="bi-main">
               <b>从备份恢复</b>
-              <div>选择本地备份文件导入。恢复前会先自动备份当前配置，可回滚</div>
+              <div>选择本地备份文件导入。恢复前会自动留一份当前配置的快照，可回滚</div>
             </div>
-            <button class="btn sm ghost">选择文件</button>
+            <button class="btn sm ghost" id="rsBtn" onclick="startRestore()">选择文件</button>
           </div>
           <div class="backup-item">
             <div class="bi-ico"><svg class="i"><use href="#i-link"/></svg></div>
             <div class="bi-main">
-              <b>迁移到新电脑</b>
-              <div>生成 6 位迁移码（15 分钟有效），在新电脑输入即可拉取配置——适合换机、公司/家里两台电脑</div>
+              <b>迁移到新电脑 <span class="tag" style="margin-left:4px">v0.3</span></b>
+              <div>扫码 / 迁移码中转配置，需要账号与云端服务，随账号体系一起上线；当前请用 .dukoubak 手动迁移</div>
             </div>
-            <button class="btn sm ghost">生成迁移码</button>
+            <button class="btn sm ghost" disabled title="需要账号与云端中转，v0.3 提供">暂未开放</button>
           </div>
-          <div class="backup-item">
-            <div class="bi-ico"><svg class="i"><use href="#i-clock"/></svg></div>
-            <div class="bi-main">
-              <b>自动备份</b>
-              <div>每周自动备份一次，保留最近 5 份，固定存在本机（不上传云端）</div>
-            </div>
-            <div class="switch on" onclick="this.classList.toggle('on')"></div>
-          </div>
-          <div class="lock-note" style="margin-top:6px"><svg class="i sm" style="color:#b45309"><use href="#i-lock"/></svg><b>安全说明</b>：备份文件用你设置的独立密码加密（不与登录密码相同），SSH 私钥与密码在包内加密存储；迁移码通过云端中转，仅传输加密包，15 分钟后失效。<br><svg class="i sm"><use href="#i-archive"/></svg><b>备份内容</b>：服务器清单与配置 / 代理参数 / 订阅与等级 / UI 偏好。不含诊断日志、浏览记录。</div>
+          <div class="lock-note" style="margin-top:6px"><svg class="i sm" style="color:#b45309"><use href="#i-lock"/></svg><b>安全说明</b>：备份文件用你设置的口令派生密钥加密（PBKDF2-SHA256 21 万轮 + AES-256-GCM），口令本身不保存、忘记后无法找回；包内凭据只在解锁后可见。恢复前会自动在配置目录留 <b>pre-import-*</b> 快照。</div>
         </div>
         <div class="card">
           <h3>高级</h3>
-          <div class="set-row"><div>本地代理端口</div><input style="width:110px;border:1px solid #d1d5db;border-radius:8px;padding:6px 10px" value="7890"></div>
-          <div class="set-row"><div>异常自检<div class="set-row-sub">开机时检测「已配置但服务未运行」，自动重连或还原（断电兜底）</div></div><div class="switch on"></div></div>
+          <div class="set-row"><div>本地代理端口<div class="set-row-sub">每台服务器可单独设置，这里显示当前生效值</div></div><input id="proxyPortVal" readonly value="—" style="width:110px;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;background:#f9fafb;color:#374151"></div>
+          <div class="set-row"><div>异常自检<div class="set-row-sub">启动时检测「已接管但代理进程不在」的残留状态，并提示一键清理</div></div><div class="switch on" style="opacity:.6;cursor:default" title="固定开启"></div></div>
           <div class="set-row"><div>新手引导</div><span style="font-size:13px;color:#6b7280">首次启动已展示 · <a href="javascript:void(0)" onclick="obGo(1);openModal('obModal')" style="color:#0f766e;text-decoration:none">重新查看</a></span></div>
-          <div class="set-row"><div>开源与合规</div><span style="font-size:13px;color:#6b7280">MIT 许可证 · <a href="javascript:void(0)" style="color:#0f766e;text-decoration:none">GitHub 仓库</a> · <a href="javascript:void(0)" style="color:#0f766e;text-decoration:none">隐私政策</a> · <a href="javascript:void(0)" style="color:#0f766e;text-decoration:none">用户协议</a></span></div>
+          <div class="set-row"><div>开源与合规</div><span style="font-size:13px;color:#6b7280">MIT 许可证 · <a href="javascript:void(0)" onclick="openExt('https://github.com/yijiuba/dukou')" style="color:#0f766e;text-decoration:none">GitHub 仓库</a></span></div>
         </div>
 
         <div class="card">
@@ -898,38 +890,33 @@ window.addEventListener('keydown',function(e){
           <div style="display:flex;align-items:flex-start;gap:14px">
             <div style="width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,#0d9488,#0891b2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">渡</div>
             <div style="flex:1">
-              <b style="font-size:15px">dukou 桌面版</b> <span class="pill on" id="verPill" style="margin-left:6px">已是最新</span>
+              <b style="font-size:15px">dukou 桌面版</b> <span class="pill off" id="verPill" style="margin-left:6px">未检查</span>
               <div style="margin-top:8px">
-                <div class="ver-row"><span class="k">当前版本</span><span class="v">v0.2.0 (build 2026.11.14)</span></div>
-                <div class="ver-row"><span class="k">内核 CLI</span><span class="v">v0.2.0 · 与桌面版同 tag 发版</span></div>
-                <div class="ver-row"><span class="k">运行环境</span><span class="v">Windows 11 · x64 · WebView2</span></div>
+                <div class="ver-row"><span class="k">当前版本</span><span class="v" id="verCur">读取中…</span></div>
+                <div class="ver-row"><span class="k">内核 CLI</span><span class="v" id="verCli">—</span></div>
+                <div class="ver-row"><span class="k">运行环境</span><span class="v" id="verEnv">—</span></div>
               </div>
             </div>
-            <button class="btn sm" id="chkBtn" onclick="checkUpdate()">检查更新</button>
+            <button class="btn sm" id="chkBtn" onclick="checkUpdate(true)">检查更新</button>
           </div>
 
           <div class="upd-state" id="updState">
-            <span style="display:flex;color:#10b981"><svg class="i lg"><use href="#i-check"/></svg></span>
-            <div style="flex:1;font-size:13px">已是最新版本
-              <div style="font-size:12px;color:#6b7280;margin-top:3px">上次检查：今天 15:40 · 启动时 + 每 24 小时自动检查</div>
+            <span style="display:flex;color:#6b7280"><svg class="i lg"><use href="#i-clock"/></svg></span>
+            <div style="flex:1;font-size:13px">尚未检查
+              <div style="font-size:12px;color:#6b7280;margin-top:3px">启动后会检查一次 GitHub Releases（不轮询、不自动下载）</div>
             </div>
           </div>
           <div class="prog" id="updProg"><i id="updBar"></i></div>
 
-          <div class="set-row" style="margin-top:10px"><div>更新通道<div class="set-row-sub">稳定版经完整验证，所有人可用；抢先版提前体验新功能（订阅权益）</div></div>
-            <div class="seg" style="margin:0" id="segCh"><div class="on" onclick="setChannel(this,'稳定版')">稳定版</div><div onclick="setChannel(this,'抢先版')">抢先版 <svg class="i sm"><use href="#i-lock"/></svg></div></div>
+          <div class="set-row" style="margin-top:10px"><div>更新通道<div class="set-row-sub">稳定版经完整验证；抢先版提前体验新功能（订阅权益，随账号体系上线）</div></div>
+            <div class="seg" style="margin:0" id="segCh"><div class="on">稳定版</div><div style="opacity:.45;cursor:not-allowed" title="v0.3 随账号体系提供">抢先版 <svg class="i sm"><use href="#i-lock"/></svg></div></div>
           </div>
-          <div class="set-row"><div>自动检查更新<div class="set-row-sub">发现新版本时托盘气泡提示，不自动下载、不静默安装</div></div><div class="switch on" onclick="this.classList.toggle('on')"></div></div>
-          <div class="set-row"><div>下载源<div class="set-row-sub">国内直连 GitHub 慢时自动切换镜像，sha256 一致才放行</div></div>
-            <select onchange="toast('下载源已切换：'+this.value+'（下次检查更新生效）')" style="border:1px solid #d1d5db;border-radius:8px;padding:6px 10px;font-size:13px"><option>自动（GitHub → 镜像）</option><option>仅 GitHub Releases</option><option>仅国内镜像</option></select>
-          </div>
+          <div class="set-row"><div>自动检查更新<div class="set-row-sub">启动时检查一次；发现新版本只提示，不自动下载、不静默安装</div></div><div class="switch on" style="opacity:.6;cursor:default" title="v0.2 固定为启动检查一次"></div></div>
           <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-            <button class="btn ghost sm" onclick="openModal('logModal')">查看更新日志</button>
-            <button class="btn ghost sm" onclick="verifySha()">校验安装包 sha256</button>
-            <button class="btn ghost sm" onclick="redownload()">重新下载完整安装包</button>
+            <button class="btn ghost sm" onclick="openReleasePage()">查看全部版本（GitHub）</button>
           </div>
-          <div class="ignored-line" id="ignoredLine">已忽略版本 <b>v0.2.1</b>（下个版本发布时会再次提醒）· <a href="javascript:void(0)" onclick="restoreNotice()">恢复提醒</a></div>
-          <div style="font-size:12px;color:#6b7280;margin-top:10px;line-height:1.7">更新方式：下载对应平台安装包（Windows msi / macOS dmg / Linux deb · AppImage）覆盖安装，配置与登录态保留。安装包必须与 GitHub Release 公示的 sha256 一致才允许安装；更新失败可回退到上一版本安装包。</div>
+          <div class="ignored-line" id="ignoredLine">已忽略版本 <b id="ignoredVer"></b>（下个版本发布时会再次提醒）· <a href="javascript:void(0)" onclick="restoreNotice()">恢复提醒</a></div>
+          <div style="font-size:12px;color:#6b7280;margin-top:10px;line-height:1.7">更新方式：下载对应平台安装包（Windows msi / macOS dmg / Linux deb · AppImage）覆盖安装，配置保留。安装包与 GitHub Release 公示的 sha256 一致才建议安装；v0.2 不做自动安装，只做提醒与跳转。</div>
         </div>
       </div>
 
@@ -1034,23 +1021,18 @@ window.addEventListener('keydown',function(e){
 <!-- 更新详情弹窗 -->
 <div class="modal-mask" id="updModal">
   <div class="modal">
-    <div class="modal-head">发现新版本 v0.2.1 <span class="pill off" style="font-weight:400">稳定版</span></div>
+    <div class="modal-head">发现新版本 <span id="updHeadVer">—</span> <span class="pill off" style="font-weight:400">稳定版</span></div>
     <div class="modal-body">
-      <div class="ver-row"><span class="k">当前版本</span><span class="v">v0.2.0</span></div>
-      <div class="ver-row"><span class="k">最新版本</span><span class="v" style="color:#ef4444">v0.2.1（2026-11-20 发布）</span></div>
+      <div class="ver-row"><span class="k">当前版本</span><span class="v" id="updCur">—</span></div>
+      <div class="ver-row"><span class="k">最新版本</span><span class="v" id="updLatest" style="color:#ef4444">—</span></div>
       <h4>更新内容</h4>
-      <ul>
-        <li>多服务器批量体检，一次检查全部线路</li>
-        <li>备份迁移提速，大配置恢复快 3 倍</li>
-        <li>修复 Windows 托盘图标偶发不显示</li>
-        <li>修复断电后环境变量残留导致的断网</li>
-      </ul>
-      <div class="modal-note">安装包 28 MB · 覆盖安装，服务器配置与登录态保留 · 下载后自动校验 sha256<br>本次为可选更新，不影响当前版本正常使用</div>
+      <div id="updNotes" class="modal-note" style="white-space:pre-wrap;font-size:13px;color:#374151">—</div>
+      <div class="modal-note">下载后在系统里覆盖安装即可，服务器配置与登录态保留。<br>本次为可选更新，不安装也不影响当前版本正常使用。</div>
     </div>
     <div class="modal-foot">
       <button class="btn ghost" onclick="skipUpdate()">跳过此版本</button>
       <button class="btn ghost" onclick="closeUpdate()">稍后提醒</button>
-      <button class="btn" onclick="updateNow()">立即更新</button>
+      <button class="btn" onclick="updateNow()">去下载</button>
     </div>
   </div>
 </div>
@@ -1105,7 +1087,7 @@ window.addEventListener('keydown',function(e){
 <!-- 批量体检 -->
 <div class="modal-mask" id="batchModal">
   <div class="modal">
-    <div class="modal-head">批量体检 · 3 台服务器</div>
+    <div class="modal-head">批量体检</div>
     <div class="modal-body">
       <div class="m-list" id="batchList"></div>
       <div class="modal-note" id="batchNote">正在逐台执行七层诊断…</div>
@@ -1120,6 +1102,24 @@ window.addEventListener('keydown',function(e){
     <div class="modal-head">同步配置到全部服务器</div>
     <div class="modal-body" id="syncBody"></div>
     <div class="modal-foot" id="syncFoot"></div>
+  </div>
+</div>
+
+<!-- 备份密码（导出 / 导入共用） -->
+<div class="modal-mask" id="bkPassModal">
+  <div class="modal">
+    <div class="modal-head" id="bkPassTitle">设置备份密码</div>
+    <div class="modal-body">
+      <div class="m-form" style="grid-template-columns:1fr">
+        <div class="field"><label>备份密码（至少 6 位）</label><input id="bkPass1" type="password" placeholder="用于加密这个备份文件" autocomplete="new-password"></div>
+        <div class="field" id="bkPass2Wrap"><label>再输一次</label><input id="bkPass2" type="password" placeholder="确认密码" autocomplete="new-password"></div>
+      </div>
+      <div class="modal-note" id="bkPassNote">备份口令不会保存在任何地方——它只在你输入的那一刻派生出密钥。忘记就无法导入，请记牢。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost sm" onclick="closeModal('bkPassModal')">取消</button>
+      <button class="btn sm" id="bkPassOk" onclick="submitBackupPassword()">开始备份</button>
+    </div>
   </div>
 </div>
 
@@ -1586,19 +1586,22 @@ window.addEventListener('keydown',function(e){
     ext('https://dukou.dev/pricing','订阅购买',
       '套餐、优惠与发票都在官网完成，支付走微信 / 支付宝。<br>客户端只读取订阅状态，<b>不接触你的支付凭证</b>；付款后回到客户端重新登录即可刷新到期时间。');
   }
-  /* 到期锁定演示：非保留服务器灰锁只读 + 一次性到期说明弹窗 */
-  var expiredDemo = false;
+  /* 到期锁定演示：真实禁用非保留服务器的切换/体检/编辑/删除，并弹一次权益说明。
+     账号体系在 v0.3，这里用列表页链接手动切换状态，方便验收锁定口径。 */
   function toggleExpireDemo(){
     expiredDemo = !expiredDemo;
-    document.querySelectorAll('.srv.lockable').forEach(function(s){ s.classList.toggle('locked', expiredDemo); });
+    renderServers();
     var link = document.getElementById('lockDemoLink');
     if(expiredDemo){
       openModal('expiredModal');
       if(link) link.textContent='▶ 恢复订阅有效状态';
+      var keep = _servers.filter(function(s){ return s.id === lockKeepId(_servers); })[0];
+      toast('已进入到期锁定：仅「' + (keep ? keep.name : '保留线路') + '」可切换，其余只读不可删');
     } else {
       if(link) link.textContent='▶ 演示到期锁定状态';
       toast('已恢复订阅有效状态：全部服务器可切换、可编辑');
     }
+    if(typeof fitHero==='function') setTimeout(fitHero,60);
   }
   /* AI 工具：安装 / 打开 / 教程 */
   function openApp(name){ toast('正在打开 '+name+'…（演示：正式版会拉起本机终端或应用窗口）'); }
@@ -1618,18 +1621,15 @@ window.addEventListener('keydown',function(e){
     runCheck(id);
   }
   /* 设置：更新通道与安装包 */
-  function setChannel(el,name){
-    document.querySelectorAll('#segCh div').forEach(function(d){d.classList.remove('on');});
+  /* 更新通道：抢先版随账号体系（v0.3）提供，v0.2 只有稳定版通道 */
+  function setChannel(el, name) {
+    if (name === '抢先版') { toast('抢先版通道随账号体系在 v0.3 提供，当前固定使用稳定版'); return; }
+    document.querySelectorAll('#segCh div').forEach(function (d) { d.classList.remove('on'); });
     el.classList.add('on');
-    toast(name==='抢先版' ? '已切到抢先版：提前体验新功能，遇到问题可随时切回稳定版（订阅权益）' : '已切回稳定版：每个版本都经过完整验证');
   }
-  function verifySha(){
-    toast('正在计算安装包 sha256，并与 Release 公示值比对…');
-    setTimeout(function(){ toast('校验通过：sha256 一致，安装包未被篡改，可以安全安装'); }, 1500);
-  }
-  function redownload(){
-    toast('开始重新下载完整安装包（约 28 MB）…');
-    setTimeout(function(){ toast('下载完成并已校验；上一版安装包保留，可随时回退'); }, 2000);
+  /* AccessKey 自动开通：v0.4，明文告知而不是假装能点 */
+  function akNotYet() {
+    toast('AccessKey 自动开通（腾讯云）在 v0.4 提供；现在请用「SSH 密码 / 密钥」部署');
   }
   /* ── 网络配置：真实部署（§5.1 App.Deploy + deploy:event 事件流） ── */
   var DEP_STEPS = [
@@ -1712,6 +1712,32 @@ window.addEventListener('keydown',function(e){
   }
   /* ── 服务器清单：真数据渲染（§5.1 ListServers / UpdateServer / RemoveServer） ── */
   var _servers = [];
+  /* 到期锁定演示：订阅到期后只留 1 台可切换，其余进入只读。
+     v0.2 还没有账号体系，这个开关由列表页的演示链接控制；
+     但禁用是**真的**——按钮 disabled + 操作函数里再挡一次，
+     避免"看起来灰了其实还能点"的假禁用。 */
+  var expiredDemo = false;
+  function lockKeepId(list) {
+    if (!list || !list.length) return '';
+    var act = list.filter(function (s) { return s.status === 'active'; })[0];
+    return (act || list[0]).id;
+  }
+  /* 首页快捷卡与线路条：跟清单保持一致，不再写死"3 台 · 使用中：新加坡" */
+  function refreshHomeQuick() {
+    var q = document.getElementById('qServers');
+    if (q) {
+      if (!_servers.length) q.textContent = '还没有服务器';
+      else {
+        var act = _servers.filter(function (s) { return s.status === 'active'; })[0];
+        q.textContent = _servers.length + ' 台' + (act ? ' · 使用中：' + act.name : ' · 未连接');
+      }
+    }
+    var rn = document.getElementById('routeName');
+    if (rn && !connected) {
+      var a2 = _servers.filter(function (s) { return s.status === 'active'; })[0];
+      rn.textContent = a2 ? a2.name + '（未连接）' : (_servers.length ? _servers[0].name + '（未连接）' : '未选择线路');
+    }
+  }
   var SRV_PILL = {
     standby: '<span class="pill off">备用</span>',
     active:  '<span class="pill on">使用中</span>',
@@ -1735,31 +1761,49 @@ window.addEventListener('keydown',function(e){
       document.getElementById('srvCount').textContent = _servers.length;
       if (!_servers.length) {
         box.innerHTML = '<div class="mini-note" style="padding:10px 0">还没有服务器——去「网络配置」页部署第一台，完成后会自动存到这里。</div>';
+        refreshHomeQuick();
         return;
       }
+      var keepId = lockKeepId(_servers);
       box.innerHTML = _servers.map(function (s, i) {
-        var pill = SRV_PILL[s.status] || SRV_PILL.standby;
+        var locked = expiredDemo && s.id !== keepId;
+        var pill = locked ? SRV_PILL.locked : (SRV_PILL[s.status] || SRV_PILL.standby);
         var flag = s.flag ? '<div class="flag">' + s.flag + '</div>'
                           : '<div class="flag" style="background:#f3f4f6;color:#6b7280">·</div>';
-        return '<div class="srv lockable">' + flag
+        var ops = locked
+          ? '<button class="btn sm" disabled title="订阅已到期：仅保留 1 台可切换，续费后恢复">切到此线路</button>'
+            + '<button class="btn sm ghost" disabled>服务器体检</button>'
+            + '<button class="btn sm ghost" disabled>编辑</button>'
+            + '<button class="btn sm ghost" disabled>删除</button>'
+          : '<button class="btn sm" onclick="switchTo(' + i + ')">切到此线路</button>'
+            + '<button class="btn sm ghost" onclick="serverCheck(\'' + s.id + '\',\'' + (s.name || '').replace(/'/g, "\\'") + '\')">服务器体检</button>'
+            + '<button class="btn sm ghost" onclick="openEdit(' + i + ')">编辑</button>'
+            + '<button class="btn sm ghost" style="color:#b91c1c" onclick="removeServer(' + i + ')">删除</button>';
+        return '<div class="srv lockable' + (locked ? ' locked' : '') + '">' + flag
           + '<div class="meta"><b>' + s.name + '</b> ' + pill
           + '<div class="mline">' + s.host + ' · SSH ' + s.sshPort + ' · ' + s.sshUser
-          + (s.lastCheck ? ' · 最近体检 ' + s.lastCheck : '') + '</div></div>'
-          + '<div class="ops">'
-          + '<button class="btn sm" onclick="switchTo(' + i + ')">切到此线路</button>'
-          + '<button class="btn sm ghost" onclick="serverCheck(\'' + s.id + '\',\'' + (s.name||'').replace(/'/g,"\\'") + '\')">服务器体检</button>'
-          + '<button class="btn sm ghost" onclick="openEdit(' + i + ')">编辑</button>'
-          + '<button class="btn sm ghost" style="color:#b91c1c" onclick="removeServer(' + i + ')">删除</button>'
-          + '</div></div>';
+          + (s.lastCheck ? ' · 最近检查 ' + s.lastCheck : '') + '</div></div>'
+          + '<div class="ops">' + ops + '</div></div>';
       }).join('');
+      refreshHomeQuick();
     }).catch(function (e) {
       box.innerHTML = '<div class="mini-note" style="padding:10px 0;color:#b91c1c">清单读取失败：' + (e.message || e) + '</div>';
     });
+  }
+  /* 到期锁定的真实拦截：按钮已 disabled，这里再挡一层（键盘/脚本触发也不放行） */
+  function blockedByLock(idx) {
+    if (!expiredDemo) return false;
+    var s = _servers[idx];
+    if (!s) return false;
+    if (s.id === lockKeepId(_servers)) return false;
+    toast('订阅已到期：仅保留 1 台服务器可切换，其余为只读（配置未删除，续费即恢复）');
+    return true;
   }
   /* 切到此线路：已连接时走「断旧连新」，未连接时直接连 */
   function switchTo(i){
     var s = _servers[i];
     if (!s) return;
+    if (blockedByLock(i)) return;
     if (!DukouAPI.hasBackend()) { toast('后端未就绪：请在桌面 App 内使用'); return; }
     if (connBusy) { toast('正在处理，请稍候…'); return; }
     connBusy = true;
@@ -1806,71 +1850,140 @@ window.addEventListener('keydown',function(e){
   }
   var _editingIdx = -1;
   var _origOpenEdit = openEdit;
-  openEdit = function (i) { _editingIdx = i; _origOpenEdit(i); };
+  openEdit = function (i) {
+    if (blockedByLock(i)) return;
+    _editingIdx = i;
+    _origOpenEdit(i);
+  };
   function removeServer(i){
     var s = _servers[i]; if (!s) return;
+    if (blockedByLock(i)) return;
     if (!confirm('确定删除「' + s.name + '」？\n\n本机保存的该服务器配置与加密凭据会一并清除；服务器本身不受影响。')) return;
     DukouAPI.removeServer(s.id)
       .then(function () { toast('已删除：' + s.name); renderServers(); })
       .catch(function (e) { toast('删除失败：' + (e.message || e)); });
   }
-  /* 批量体检 */
-  var batchData=[
-    {n:'新加坡 · 腾讯云轻量', ok:true,  t:'通过 · 82 分（1 项可优化）'},
-    {n:'东京 · Vultr',        ok:true,  t:'通过 · 96 分'},
-    {n:'洛杉矶 · 搬瓦工',      ok:false, t:'失败 · SSH 超时（连接阶段）'}
-  ];
+  /* 批量体检：逐台跑真实服务端诊断（L1~L4）。
+     串行而不是并发：同时开多条 SSH 会把本机带宽打满，
+     测出来的延迟反而不准，也容易触发目标机 sshd 的防护。 */
   function runBatchCheck(){
-    openModal('batchModal');
-    var box=document.getElementById('batchList'), note=document.getElementById('batchNote');
-    box.innerHTML=batchData.map(function(d){
-      return '<div class="m-item"><span class="nm">'+d.n+'</span><span class="st wait">排队中…</span></div>';
+    if (!DukouAPI.hasBackend()) { toast('后端未就绪：请在桌面 App 内使用'); return; }
+    if (!_servers.length) { toast('还没有服务器，先到「网络配置」部署一台'); nav('network'); return; }
+    if (expiredDemo && _servers.length > 1) {
+      toast('订阅已到期：批量体检为订阅功能，续费后恢复');
+      return;
+    }
+    var box = document.getElementById('batchList'), note = document.getElementById('batchNote');
+    document.querySelector('#batchModal .modal-head').textContent = '批量体检 · ' + _servers.length + ' 台服务器';
+    box.innerHTML = _servers.map(function (s, i) {
+      return '<div class="m-item"><span class="nm">' + s.name + '</span><span class="st wait" id="bt-' + i + '">排队中…</span></div>';
     }).join('');
-    note.textContent='正在逐台执行七层诊断…';
-    var items=box.children;
-    batchData.forEach(function(d,i){
-      setTimeout(function(){
-        var st=items[i].lastElementChild;
-        st.className='st '+(d.ok?'ok':'bad');
-        st.textContent=d.t;
-        if(i===batchData.length-1){
-          setTimeout(function(){
-            note.innerHTML='完成：<b style="color:#10b981">2 台通过</b> · <b style="color:#ef4444">1 台失败</b>。失败的那台可在列表里点「重试部署」。';
-          }, 420);
+    note.textContent = '逐台执行服务端诊断（每台约 3~8 秒）…';
+    openModal('batchModal');
+    var ok = 0, bad = 0, i = 0;
+    function next() {
+      if (i >= _servers.length) {
+        note.innerHTML = '完成：<b style="color:#10b981">' + ok + ' 台通过</b> · '
+          + '<b style="color:#ef4444">' + bad + ' 台异常</b>。点列表里的「服务器体检」可看分层细节与修复命令。';
+        return;
+      }
+      var s = _servers[i], el = document.getElementById('bt-' + i);
+      if (el) el.textContent = '体检中…';
+      DukouAPI.doctor(s.id).then(function (rep) {
+        var fails = (rep.layers || []).filter(function (l) { return l.status === 'fail'; });
+        if (el) {
+          if (fails.length) {
+            bad++;
+            el.className = 'st bad';
+            el.textContent = '失败 · ' + fails[0].name + '：' + fails[0].summary;
+          } else {
+            ok++;
+            el.className = 'st ok';
+            el.textContent = '通过 · ' + rep.score + ' 分';
+          }
         }
-      }, 650 + i*780);
-    });
+      }).catch(function (e) {
+        bad++;
+        if (el) { el.className = 'st bad'; el.textContent = '失败 · ' + (e.message || e); }
+      }).then(function () { i++; setTimeout(next, 150); });
+    }
+    next();
   }
-  /* 同步配置 */
-  function openSync(){
-    document.getElementById('syncBody').innerHTML=
-      '<div class="mini-note" style="margin-bottom:12px">以「新加坡 · 腾讯云轻量」为基准，把代理端口、密码、分流规则同步到其余服务器。适用于多机同一套密码的场景。</div>'
-      + '<div class="m-list">'
-      + '<div class="m-item"><span class="nm">东京 · Vultr</span><span class="st wait">将重启 gost（约 2 秒断流）</span></div>'
-      + '<div class="m-item"><span class="nm">洛杉矶 · 搬瓦工</span><span class="st bad">SSH 不可达，本次跳过</span></div>'
-      + '</div>'
-      + '<div class="modal-note">只写代理相关配置，不动系统设置、不动 SSH 端口；当前使用中的线路不受影响。</div>';
-    document.getElementById('syncFoot').innerHTML=
-      '<button class="btn ghost sm" onclick="closeModal(\'syncModal\')">取消</button>'
-      + '<button class="btn sm" onclick="doSync()">确认同步</button>';
-    openModal('syncModal');
-  }
-  function doSync(){
-    document.getElementById('syncBody').innerHTML=
-      '<div class="m-list">'
-      + '<div class="m-item"><span class="nm">东京 · Vultr</span><span class="st ok">已同步 · 服务已重启</span></div>'
-      + '<div class="m-item"><span class="nm">洛杉矶 · 搬瓦工</span><span class="st bad">已跳过（SSH 超时）</span></div>'
-      + '</div>'
-      + '<div class="modal-note">同步完成：1 台成功、1 台跳过。跳过的那台恢复连通后，可在列表里重新同步。</div>';
-    document.getElementById('syncFoot').innerHTML=
-      '<button class="btn sm" onclick="closeModal(\'syncModal\')">完成</button>';
-  }
-  /* 导出清单 */
+  /* 同步配置（批量改写服务端）v0.2 未实现：按钮已置灰，函数不再保留 */
+  /* 导出清单：CSV / JSON 走脱敏清单（真文件），加密包走备份流程（需要口令） */
   function doExport(){
-    var v=document.getElementById('expFmt').value;
-    var ext2 = v.indexOf('CSV')===0 ? '.csv' : (v.indexOf('JSON')===0 ? '.json' : '.dukoubak');
+    var v = document.getElementById('expFmt').value;
     closeModal('exportModal');
-    toast('已导出 dukou-servers-2026-11-14'+ext2+'（3 台服务器'+(ext2==='.dukoubak'?'，含加密密码':'，密码已脱敏')+'）');
+    if (v.indexOf('加密包') === 0) { startBackup(); return; }
+    if (!DukouAPI.hasBackend()) { toast('后端未就绪：请在桌面 App 内使用'); return; }
+    var fmt = v.indexOf('CSV') === 0 ? 'csv' : 'json';
+    DukouAPI.exportServers(fmt).then(function (res) {
+      var n = res && res.length ? res[0] : 0;
+      var cancelled = res && res.length > 1 ? res[1] : false;
+      if (cancelled) return;
+      toast('已导出 ' + n + ' 台服务器的脱敏清单（' + fmt.toUpperCase() + '），密码一律 ******');
+    }).catch(function (e) { toast('导出失败：' + (e.message || e)); });
+  }
+
+  /* ── 备份与恢复（.dukoubak）：口令只在前端与后端之间传递一次，不落盘 ── */
+  var _bkMode = 'export';
+  function bkBusy(on, label) {
+    var b = document.getElementById('bkBtn'), r = document.getElementById('rsBtn');
+    if (b) { b.disabled = on; b.textContent = on ? '备份中…' : '立即备份'; }
+    if (r) { r.disabled = on; r.textContent = on ? '处理中…' : '选择文件'; }
+    return label;
+  }
+  function startBackup() {
+    if (!DukouAPI.hasBackend()) { toast('后端未就绪：请在桌面 App 内使用'); return; }
+    _bkMode = 'export';
+    document.getElementById('bkPassTitle').textContent = '设置备份密码';
+    document.getElementById('bkPass2Wrap').style.display = '';
+    document.getElementById('bkPassNote').textContent =
+      '备份口令不会保存在任何地方——它只在你输入的那一刻派生出密钥。忘记就无法导入，请记牢。';
+    document.getElementById('bkPassOk').textContent = '开始备份';
+    document.getElementById('bkPass1').value = '';
+    document.getElementById('bkPass2').value = '';
+    openModal('bkPassModal');
+    setTimeout(function () { document.getElementById('bkPass1').focus(); }, 60);
+  }
+  function startRestore() {
+    if (!DukouAPI.hasBackend()) { toast('后端未就绪：请在桌面 App 内使用'); return; }
+    _bkMode = 'import';
+    document.getElementById('bkPassTitle').textContent = '输入备份密码';
+    document.getElementById('bkPass2Wrap').style.display = 'none';
+    document.getElementById('bkPassNote').textContent =
+      '恢复按服务器 ID 合并：同 ID 覆盖、新 ID 追加、本机独有的保持不动。导入前会自动留一份当前配置快照，可回滚。';
+    document.getElementById('bkPassOk').textContent = '选择文件并恢复';
+    document.getElementById('bkPass1').value = '';
+    openModal('bkPassModal');
+    setTimeout(function () { document.getElementById('bkPass1').focus(); }, 60);
+  }
+  function submitBackupPassword() {
+    var p1 = document.getElementById('bkPass1').value;
+    var p2 = document.getElementById('bkPass2').value;
+    if (p1.length < 6) { toast('备份密码至少 6 位'); return; }
+    if (_bkMode === 'export' && p1 !== p2) { toast('两次输入的密码不一致'); return; }
+    closeModal('bkPassModal');
+    bkBusy(true);
+
+    function done() { bkBusy(false); }
+    function pick(sum, cancelled) {
+      if (cancelled) { done(); return; }
+      var name = String(sum.path || '').split(/[\\\/]/).pop();
+      if (_bkMode === 'export') {
+        var warn = (sum.warnings && sum.warnings.length) ? '；' + sum.warnings.join('；') : '';
+        toast('已备份 ' + sum.servers + ' 台服务器到 ' + name + warn);
+      } else {
+        renderServers();
+        refreshConn();
+        toast('已恢复：新增 ' + sum.added + ' 台、覆盖 ' + sum.updated + ' 台（导入前快照已留档）'
+          + (sum.warnings && sum.warnings.length ? '；' + sum.warnings.join('；') : ''));
+      }
+      done();
+    }
+    var p = _bkMode === 'export' ? DukouAPI.exportBackup(p1) : DukouAPI.importBackup(p1);
+    p.then(function (res) { pick(res[0] || {}, !!res[1]); })
+      .catch(function (e) { toast((_bkMode === 'export' ? '备份失败：' : '恢复失败：') + (e.message || e)); done(); });
   }
   /* 点遮罩关闭弹窗 */
   document.querySelectorAll('.modal-mask').forEach(function(m){
@@ -1929,6 +2042,25 @@ window.addEventListener('keydown',function(e){
     if (ts) {
       ts.textContent = connected ? '已连接' : '未连接';
       ts.style.color = connected ? '#10b981' : '#ef4444';
+    }
+    /* 首页线路条：已连接显示真实线路名，未连接提示将要连的那台 */
+    var rn = document.getElementById('routeName');
+    if (rn) {
+      if (connected) rn.textContent = _connStatus.serverName || '已连接线路';
+      else {
+        var act = _servers.filter(function (s) { return s.status === 'active'; })[0] || _servers[0];
+        rn.textContent = act ? act.name + '（未连接）' : '未选择线路';
+      }
+    }
+    /* 设置页「本地代理端口」：显示当前生效值，不再写死 7890 */
+    var pp = document.getElementById('proxyPortVal');
+    if (pp) {
+      var pv = _connStatus.localPort;
+      if (!pv) {
+        var a3 = _servers.filter(function (s) { return s.status === 'active'; })[0] || _servers[0];
+        pv = a3 ? a3.proxyPort : '';
+      }
+      pp.value = pv || '—';
     }
     /* 上次异常退出留下的代理设置：显示醒目横条，一键清理（§六验收） */
     var rb = document.getElementById('residueBar');
@@ -1993,62 +2125,127 @@ window.addEventListener('keydown',function(e){
     document.getElementById('net-ssh').style.display = mode==='ssh' ? 'block' : 'none';
     document.getElementById('net-ak').style.display  = mode==='ak'  ? 'block' : 'none';
   }
-  function openUpdate(){ document.getElementById('updModal').classList.add('show'); }
-  function closeUpdate(){ document.getElementById('updModal').classList.remove('show'); }
-  function dismissUpdate(){
+  /* ── 版本与更新（真接口：App.CheckUpdate → GitHub Releases 最新 tag） ──
+     v0.2 只做「提示 + 跳转下载」，不自动下载安装：
+     静默安装类工具最容易出事故，而这一步还没有签名校验链路。 */
+  var _updateInfo = null;
+  var _checking = false;
+  var IGNORED_KEY = 'dukou.ignoredVersion';
+  var RELEASE_PAGE = 'https://github.com/yijiuba/dukou/releases';
+
+  function openExt(url) {
+    if (!DukouAPI.hasBackend()) { try { window.open(url, '_blank'); } catch (e) {} return; }
+    DukouAPI.openExternal(url).catch(function (e) { toast('打开链接失败：' + (e.message || e)); });
+  }
+  function openReleasePage() { openExt(RELEASE_PAGE); }
+
+  function openUpdate() {
+    if (!_updateInfo || !_updateInfo.available) { checkUpdate(true); return; }
+    document.getElementById('updHeadVer').textContent = 'v' + _updateInfo.latest;
+    document.getElementById('updCur').textContent = 'v' + _updateInfo.current;
+    document.getElementById('updLatest').textContent = 'v' + _updateInfo.latest
+      + (_updateInfo.publishedAt ? '（' + String(_updateInfo.publishedAt).slice(0, 10) + ' 发布）' : '');
+    document.getElementById('updNotes').textContent = _updateInfo.notes || '（该版本未提供更新说明）';
+    document.getElementById('updModal').classList.add('show');
+  }
+  function closeUpdate() { document.getElementById('updModal').classList.remove('show'); }
+
+  function dismissUpdate() {
+    if (_updateInfo && _updateInfo.latest) {
+      try { localStorage.setItem(IGNORED_KEY, _updateInfo.latest); } catch (e) {}
+      document.getElementById('ignoredVer').textContent = 'v' + _updateInfo.latest;
+    }
     document.getElementById('updHome').style.display = 'none';
     document.getElementById('ignoredLine').style.display = 'block';
     fitHero();
   }
-  function skipUpdate(){ closeUpdate(); dismissUpdate(); }
-  function restoreNotice(){
-    document.getElementById('updHome').style.display = 'flex';
+  function skipUpdate() { closeUpdate(); dismissUpdate(); }
+  function restoreNotice() {
+    try { localStorage.removeItem(IGNORED_KEY); } catch (e) {}
     document.getElementById('ignoredLine').style.display = 'none';
+    if (_updateInfo && _updateInfo.available) {
+      document.getElementById('updHome').style.display = 'flex';
+    }
+    fitHero();
+    toast('已恢复更新提醒');
+  }
+  function updateNow() {
+    closeUpdate();
+    var url = (_updateInfo && _updateInfo.downloadURL) || RELEASE_PAGE;
+    openExt(url);
+  }
+
+  /* 把 UpdateInfo 落到三处界面：设置页状态条 / 首页细条 / 版本徽标 */
+  function applyUpdateInfo(info) {
+    _updateInfo = info;
+    var pill = document.getElementById('verPill');
+    var s = document.getElementById('updState');
+    var cur = document.getElementById('verCur');
+    if (cur) cur.textContent = 'v' + info.current;
+
+    if (!info.available) {
+      if (pill) { pill.textContent = '已是最新'; pill.className = 'pill on'; }
+      if (s) s.innerHTML = '<span style="display:flex;color:#10b981">' + I('check', 'i lg') + '</span>'
+        + '<div style="flex:1;font-size:13px">已是最新版本 v' + info.current
+        + '<div style="font-size:12px;color:#6b7280;margin-top:3px">检查时间 ' + new Date().toLocaleTimeString() + ' · 只在启动时与点按钮时检查</div></div>';
+      return;
+    }
+
+    if (pill) { pill.textContent = '有新版本'; pill.className = 'pill err'; }
+    if (s) s.innerHTML = '<span style="display:flex;color:#0f766e">' + I('sparkle', 'i lg') + '</span>'
+      + '<div style="flex:1;font-size:13px"><b style="color:#ef4444">发现新版本 v' + info.latest + '</b>'
+      + '<div style="font-size:12px;color:#6b7280;margin-top:3px">当前 v' + info.current
+      + (info.publishedAt ? ' · ' + String(info.publishedAt).slice(0, 10) + ' 发布' : '') + '</div></div>'
+      + '<button class="btn sm" onclick="openUpdate()">查看更新</button>';
+
+    var ignored = '';
+    try { ignored = localStorage.getItem(IGNORED_KEY) || ''; } catch (e) {}
+    if (ignored === info.latest) {
+      document.getElementById('ignoredVer').textContent = 'v' + info.latest;
+      document.getElementById('ignoredLine').style.display = 'block';
+      document.getElementById('updHome').style.display = 'none';
+      return;
+    }
+    var firstLine = String(info.notes || '').split('\n').filter(function (x) { return x.trim(); })[0] || '点击查看更新内容';
+    firstLine = firstLine.replace(/^[#*\-\s]+/, '').slice(0, 48);
+    document.getElementById('updVer').textContent = 'v' + info.latest + ' 可用';
+    document.getElementById('updDesc').textContent = firstLine;
+    document.getElementById('updHome').style.display = 'flex';
     fitHero();
   }
-  function updateNow(){
-    closeUpdate();
-    document.getElementById('updHome').style.display = 'none';
-    nav('set');
-    document.getElementById('verPill').textContent = '有新版本';
-    document.getElementById('verPill').className = 'pill err';
-    document.getElementById('updState').innerHTML = '<span style="display:flex;color:#0f766e">'+I('sparkle','i lg')+'</span>'
-      + '<div style="flex:1;font-size:13px"><b style="color:#ef4444">发现新版本 v0.2.1</b>'
-      + '<div style="font-size:12px;color:#6b7280;margin-top:3px">多服务器批量体检 · 备份迁移提速 · 约 28 MB</div></div>'
-      + '<button class="btn sm" id="updBtn" onclick="startUpdate()">立即更新</button>';
-    setTimeout(startUpdate, 400);
-  }
-  function checkUpdate(){
-    var s = document.getElementById('updState');
-    document.getElementById('verPill').textContent = '检查中';
-    document.getElementById('verPill').className = 'pill off';
-    s.innerHTML = '<span style="font-size:16px">⏳</span><div style="flex:1;font-size:13px;color:#0f766e">正在检查更新…</div>';
-    setTimeout(function(){
-      document.getElementById('verPill').textContent = '有新版本';
-      document.getElementById('verPill').className = 'pill err';
-      s.innerHTML = '<span style="display:flex;color:#0f766e">'+I('sparkle','i lg')+'</span><div style="flex:1;font-size:13px"><b style="color:#ef4444">发现新版本 v0.2.1</b>'
-        + '<div style="font-size:12px;color:#6b7280;margin-top:3px">多服务器批量体检 · 备份迁移提速 · 安装包约 28 MB</div></div>'
-        + '<button class="btn sm" id="updBtn" onclick="startUpdate()">立即更新</button>';
-    }, 800);
-  }
-  function startUpdate(){
-    var p = document.getElementById('updProg'), b = document.getElementById('updBar'), btn = document.getElementById('updBtn');
-    p.style.display = 'block'; b.style.width = '0%';
-    btn.disabled = true; btn.textContent = '下载中…';
-    var n = 0;
-    var t = setInterval(function(){
-      n += Math.random()*16 + 7;
-      if (n >= 100){
-        n = 100; clearInterval(t);
-        btn.textContent = '已下载';
-        document.getElementById('updState').innerHTML = '<span style="display:flex;color:#10b981">'+I('check','i lg')+'</span>'
-          + '<div style="flex:1;font-size:13px"><b style="color:#10b981">v0.2.1 已下载并通过 sha256 校验</b>'
-          + '<div style="font-size:12px;color:#6b7280;margin-top:3px">重启后完成安装，服务器配置与登录态保留</div></div>'
-          + '<button class="btn sm">重启并安装</button>';
+
+  function checkUpdate(manual) {
+    if (!DukouAPI.hasBackend()) { if (manual) toast('后端未就绪：请在桌面 App 内使用'); return; }
+    if (_checking) return;
+    _checking = true;
+    var btn = document.getElementById('chkBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '检查中…'; }
+    if (manual) {
+      var s = document.getElementById('updState');
+      if (s) s.innerHTML = '<span style="font-size:16px">⏳</span><div style="flex:1;font-size:13px;color:#0f766e">正在检查 GitHub Releases…</div>';
+      var pill = document.getElementById('verPill');
+      if (pill) { pill.textContent = '检查中'; pill.className = 'pill off'; }
+    }
+    DukouAPI.checkUpdate().then(function (info) {
+      applyUpdateInfo(info);
+      if (manual) {
+        if (info.available) openUpdate();
+        else toast('已是最新版本 v' + info.current);
       }
-      b.style.width = n + '%';
-    }, 300);
+    }).catch(function (e) {
+      var s = document.getElementById('updState');
+      if (s) s.innerHTML = '<span style="display:flex;color:#b45309">' + I('alert', 'i lg') + '</span>'
+        + '<div style="flex:1;font-size:13px">检查失败：' + (e.message || e)
+        + '<div style="font-size:12px;color:#6b7280;margin-top:3px">不影响当前使用；可稍后重试或手动打开 GitHub Releases</div></div>';
+      var pill = document.getElementById('verPill');
+      if (pill) { pill.textContent = '检查失败'; pill.className = 'pill off'; }
+      if (manual) toast('检查更新失败：' + (e.message || e));
+    }).then(function () {
+      _checking = false;
+      if (btn) { btn.disabled = false; btn.textContent = '检查更新'; }
+    });
   }
+
   document.getElementById('aiWarn').style.display = 'block';
   fitHero();
   setTimeout(fitHero, 120);
@@ -2064,16 +2261,28 @@ window.addEventListener('keydown',function(e){
   whenBackendReady(function () {
     refreshConn();
     DukouAPI.appInfo().then(function (info) {
-      if (info && info.firstRun) openModal('obModal');
+      if (!info) return;
+      /* 版本 / 运行环境用真值填，不再写死 "v0.2.0 (build 2026.11.14)" */
+      var v = 'v' + (info.version || '未知');
+      var vc = document.getElementById('verCur'); if (vc) vc.textContent = v;
+      var vcli = document.getElementById('verCli'); if (vcli) vcli.textContent = v + ' · 与桌面版同 tag 发版';
+      var envName = ({ windows: 'Windows', darwin: 'macOS', linux: 'Linux' })[info.platform] || info.platform || '';
+      var ve = document.getElementById('verEnv');
+      if (ve) ve.textContent = envName + ' · ' + (info.arch || '') + ' · ' + (info.configDir || '');
+
+      if (info.firstRun) openModal('obModal');
       /* dev 自检钩子：-dev 版本自动跳健康诊断页并触发一次真实体检，
          供自动化验证渲染链路；正式构建版本号不带 -dev，不会触发。 */
-      if (info && /-dev$/.test(info.version || '')) {
+      if (/-dev$/.test(info.version || '')) {
         setTimeout(function(){ nav('doctor'); runCheck(); }, 1200);
         /* dev 自检：检测到残留代理时自动跑一次清理，验证 GUI 清理链路 */
         DukouAPI.proxyStatus().then(function(st){
           if (st && st.residue) setTimeout(cleanupResidue, 5000);
         }).catch(function(){});
+        return;
       }
+      /* 正式版：首屏稳定后检查一次更新（不阻塞启动、不轮询） */
+      setTimeout(function () { checkUpdate(false); }, 2500);
     }).catch(function () {});
     renderServers();
   }, 40);

@@ -57,8 +57,32 @@
     /* ── 残留清理（真接口，M2-4 接入） ── */
     cleanupResidue: function () { return call('CleanupResidue'); },
 
+    /* ── 备份 / 导出 / 更新（v0.2 M3，真接口） ──
+       exportBackup / importBackup / exportServers 会先弹系统文件对话框，
+       返回 [结果, 是否取消]；取消时第二项为 true，界面不该报错。 */
+    exportBackup: function (password) { return call('ExportBackup', [password]); },
+    importBackup: function (password) { return call('ImportBackup', [password]); },
+    exportServers: function (format) { return call('ExportServers', [format]); },
+    checkUpdate: function () { return call('CheckUpdate'); },
+    openExternal: function (url) { return call('OpenExternal', [url]); },
+
     /* ── 应用信息 ── */
     appInfo: function () { return call('AppInfo'); },
-    configDir: function () { return call('ConfigDir'); }
+    configDir: function () { return call('ConfigDir'); },
+
+    /* ── 账号与订阅（v0.3，契约 v1.0；真接口已就绪） ──
+       注意：界面仍显示演示数据（MOCK.account 等为 true），
+       接线时把对应开关置 false 即可，调用签名不再变化。 */
+    sessionInfo: function () { return call('SessionInfo'); },
+    loginRequestCode: function (email) { return call('LoginRequestCode', [email]); },
+    loginVerify: function (email, verificationId, isExistingUser, code) {
+      return call('LoginVerify', [email, verificationId, isExistingUser, code]);
+    },
+    logout: function () { return call('Logout'); },
+    account: function () { return call('Account'); },
+    plans: function () { return call('Plans'); },
+    claimTrial: function () { return call('ClaimTrial'); },
+    orders: function () { return call('Orders'); },
+    referral: function () { return call('Referral'); }
   };
 })();
