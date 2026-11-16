@@ -2279,6 +2279,15 @@ window.addEventListener('keydown',function(e){
         DukouAPI.proxyStatus().then(function(st){
           if (st && st.residue) setTimeout(cleanupResidue, 5000);
         }).catch(function(){});
+        /* dev 自检：0.2.0-dev 专用验收入口——自动走完整备份提交流程
+           （填入口令 → submitBackupPassword → 保存对话框），验证
+           「口令校验 → ExportBackup → comdlg32 对话框 → 文件落盘」全链路。
+           正式构建版本号不带 -dev，不会触发。 */
+        setTimeout(function () {
+          document.getElementById('bkPass1').value = 'verify123';
+          document.getElementById('bkPass2').value = 'verify123';
+          submitBackupPassword();
+        }, 4000);
         return;
       }
       /* 正式版：首屏稳定后检查一次更新（不阻塞启动、不轮询） */
