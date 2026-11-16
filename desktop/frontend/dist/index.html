@@ -207,6 +207,10 @@
   /* 服务器清单分区标题：正在使用 / 可切换 两段式（正在使用的不给切换按钮） */
   .srv-sec { font-size:12px; color:#6b7280; font-weight:600; letter-spacing:.02em; margin:12px 0 2px; }
   .srv-sec:first-child { margin-top:2px; }
+  /* 部署弹窗的只读服务信息行 */
+  .dep-info { display:flex; gap:10px; font-size:13px; padding:5px 0; }
+  .dep-info span { width:52px; color:#6b7280; flex-shrink:0; }
+  .dep-info b { font-weight:600; word-break:break-all; }
   /* 到期锁定演示：非保留服务器转只读 + 灰锁图标 */
   .srv.locked .flag { filter:grayscale(1); opacity:.5; }
   .srv.locked .meta { opacity:.55; }
@@ -1071,7 +1075,14 @@ window.addEventListener('keydown',function(e){
   <div class="modal" style="width:560px">
     <div class="modal-head" id="addSrvTitle">添加服务器</div>
     <div class="modal-body">
-      <div class="form-grid">
+      <!-- 部署模式：只读服务信息（改连接信息走列表里的「编辑」） -->
+      <div id="mDepInfo" style="display:none">
+        <div class="dep-info"><span>服务器</span><b id="mDepInfoHost">—</b></div>
+        <div class="dep-info"><span>SSH</span><b id="mDepInfoSSH">—</b></div>
+        <div class="dep-info"><span>密码</span><b>已加密保存在本机，不回显</b></div>
+      </div>
+      <!-- 添加模式：表单（保存后状态为待部署） -->
+      <div class="form-grid" id="mDepForm">
         <div class="field"><label>服务器 IP</label><input id="mDepHost" placeholder="例如 1.2.3.4 或 example.com"></div>
         <div class="field"><label>SSH 端口</label><input id="mDepPort" value="22"></div>
         <div class="field"><label>账号</label><input id="mDepUser" value="root"></div>
@@ -1812,6 +1823,7 @@ window.addEventListener('keydown',function(e){
   /* 弹窗双模式：add（只保存，状态待部署）/ deploy（从清单发起部署，预填可改） */
   var _addSrvMode = 'add';
   var _deploySrvId = null;
+  /* 只复位字段值与进度区；表单/信息区的可见性由 open 函数按模式控制 */
   function resetAddSrvForm(prefill){
     document.getElementById('mDepHost').value = prefill ? prefill.host : '';
     document.getElementById('mDepPort').value = prefill ? prefill.sshPort : '22';
@@ -1826,23 +1838,32 @@ window.addEventListener('keydown',function(e){
     if (deploying) { toast('正在部署中，请等这次部署结束再添加'); return; }
     _addSrvMode = 'add'; _deploySrvId = null;
     document.getElementById('addSrvTitle').textContent = '添加服务器';
+    document.getElementById('mDepBtn').style.display = '';
     document.getElementById('mDepBtn').textContent = '保存';
+    document.getElementById('mDepForm').style.display = '';
+    document.getElementById('mDepInfo').style.display = 'none';
     document.getElementById('addSrvHint').textContent = '先保存基本信息，SSH 密码加密存本机；服务端安装在你点「部署」时才进行。';
     document.getElementById('mDepPass').placeholder = '服务器登录密码';
     resetAddSrvForm(null);
     openModal('addSrvModal');
   }
-  /* 列表「待部署」行的「部署」按钮：连接信息预填，不用重新输入 */
+  /* 列表「待部署」行的「部署」按钮：只读展示服务信息，直接开跑部署。
+     不再放输入框——改连接信息走列表里的「编辑」，这里重复一遍表单只会
+     让人以为必须重新填一遍。 */
   function openDeployModal(i){
     var s = _servers[i]; if (!s) return;
     if (deploying) { toast('正在部署中，请等这次部署结束'); return; }
     _addSrvMode = 'deploy'; _deploySrvId = s.id;
     document.getElementById('addSrvTitle').textContent = '部署服务器';
-    document.getElementById('mDepBtn').textContent = '开始部署';
-    document.getElementById('addSrvHint').textContent = '部署会 SSH 登录服务器安装代理服务端（约 1~2 分钟）；本机系统代理只在点「连接」时才会改动。';
-    document.getElementById('mDepPass').placeholder = '留空则使用已保存的密码';
-    resetAddSrvForm(s);
+    document.getElementById('mDepBtn').style.display = 'none'; /* 自动开跑，没有第二次点击 */
+    document.getElementById('mDepForm').style.display = 'none';
+    document.getElementById('mDepInfo').style.display = '';
+    document.getElementById('mDepInfoHost').textContent = s.host;
+    document.getElementById('mDepInfoSSH').textContent = s.sshUser + ' @ ' + s.host + ' 端口 ' + s.sshPort;
+    document.getElementById('addSrvHint').textContent = '正在从已保存的信息直接部署（约 1~2 分钟）；要改连接信息请先关掉弹窗，在列表点「编辑」。';
+    resetAddSrvForm(null);
     openModal('addSrvModal');
+    setTimeout(function(){ runDeployServer(); }, 300);
   }
   /* 保存（暂不部署）：状态存为 pending，部署随时在列表点「部署」 */
   function saveNewServer(){
@@ -1865,38 +1886,35 @@ window.addEventListener('keydown',function(e){
       })
       .catch(function (e) { toast('保存失败：' + (e.message || e)); });
   }
-  /* 从清单发起部署：预填信息可改并存回，密码留空沿用已保存的 */
+  /* 从清单发起部署：连接信息全部来自已保存的清单与加密库，
+     不读任何表单（表单在部署模式下根本不显示）。 */
   function runDeployServer(){
     if (!DukouAPI.hasBackend()) { toast('后端未就绪：请在桌面 App 内使用'); return; }
     if (!_deploySrvId) { toast('找不到要部署的服务器，请关闭后从列表重新进入'); return; }
     if (deploying) return;
     depScope = 'modal';
-    var host = document.getElementById('mDepHost').value.trim();
-    var port = parseInt(document.getElementById('mDepPort').value, 10) || 22;
-    var user = document.getElementById('mDepUser').value.trim() || 'root';
-    var pass = document.getElementById('mDepPass').value;
-    if (!host) { toast('请先填写服务器 IP / 域名'); return; }
     deploying = true;
     var btn = document.getElementById('mDepBtn');
-    btn.disabled = true; btn.textContent = '部署中…';
+    btn.style.display = 'none';
     document.getElementById('mDepCard').style.display = '';
     var logEl = document.getElementById('mDepLog');
     logEl.style.display = 'none';
     logEl.textContent = '';
     document.getElementById('mDepSteps').innerHTML =
       depRow('modal', '', 1, 'connect') + depRow('modal', '', 2, 'server') + depRow('modal', '', 3, 'client') + depRow('modal', '', 4, 'codex');
-    DukouAPI.deployServer(_deploySrvId, { host: host, sshPort: port, sshUser: user, sshPassword: pass })
+    DukouAPI.deployServer(_deploySrvId, {})
       .then(function (res) {
         toast('部署完成！出口 IP ' + (res.egressIp || '（验证中）') + '，服务器已转为备用，可切换');
         renderServers();
         setTimeout(function(){ closeModal('addSrvModal'); }, 1100);
       })
       .catch(function (e) {
-        toast('部署未完成：' + (e.message || e));
+        toast(e.message || ('部署未完成：' + e));
       })
       .then(function () {
         deploying = false;
-        btn.disabled = false; btn.textContent = '开始部署';
+        btn.style.display = '';
+        btn.textContent = '开始部署';
       });
   }
   function startDeploy(scope){

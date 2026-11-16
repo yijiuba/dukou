@@ -93,11 +93,14 @@ func (s *Service) DeployServer(id string, in store.ServerInput) (deploy.Result, 
 		return deploy.Result{}, errors.New("没有可用的 SSH 密码：请在部署弹窗里填一次密码，它会加密存回本机")
 	}
 
+	// 注意字段套别：Request.SSHPort/SSHUser/SSHPassword 才是 SSH 连接用的；
+	// Port/User/Password 是「高级项」（服务端代理监听端口/代理用户名/代理密码），
+	// 填错套的后果是 SSH 密码根本没传进去，报「请填写 SSH 密码或私钥」。
 	req := deploy.Request{
-		ServerHost: cur.Host,
-		Port:       cur.ServerPort,
-		User:       cur.SSHUser,
-		Password:   password,
+		ServerHost:  cur.Host,
+		SSHPort:     cur.SSHPort,
+		SSHUser:     cur.SSHUser,
+		SSHPassword: password,
 	}
 	res, err := s.Deploy(req)
 	if err != nil {
