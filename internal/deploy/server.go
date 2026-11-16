@@ -3,8 +3,10 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/yijiuba/dukou/internal/gost"
 	"github.com/yijiuba/dukou/internal/remote"
@@ -145,18 +147,19 @@ fi`, req.Port, req.Port))
 	// ── 云安全组检查 ────────────────────────────────────────────
 	// 系统防火墙和云安全组是两套东西：前者在机器里，后者在阿里云控制台。
 	// 这一步从本机直接连服务器的对外端口，能区分到底是哪种没放开。
+	// 用 Go 原生拨号而不是 shell（bash /dev/tcp）：桌面 App 在 Windows 上
+	// 由资源管理器启动，PATH 里通常没有 bash，命令会静默失败，把放行了
+	// 的端口误报成「安全组没放行」（真机踩过）。
 	emit(Event{Kind: KindLog, Step: step, Msg: "检查云安全组是否放行…"})
-	local := remote.NewLocal(req.LocalSudo)
-	probe := fmt.Sprintf(
-		`timeout 8 bash -c 'exec 3<>/dev/tcp/%s/%d' && echo open || echo closed`,
-		req.ServerHost, req.Port)
-	out, _ := local.Run(probe)
-	if !strings.Contains(out, "open") {
-		return fmt.Errorf("服务器本机监听正常，但从公网连不上 %s:%d —— "+
+	addr := net.JoinHostPort(req.ServerHost, strconv.Itoa(req.Port))
+	conn, err := net.DialTimeout("tcp", addr, 8*time.Second)
+	if err != nil {
+		return fmt.Errorf("服务器本机监听正常，但从公网连不上 %s —— "+
 			"这是云安全组没放行。请到阿里云控制台 → 服务器实例 → 安全组 → "+
 			"入方向 → 手动添加：协议 TCP、端口 %d、授权对象 0.0.0.0/0，保存后重试",
-			req.ServerHost, req.Port, req.Port)
+			addr, req.Port)
 	}
+	conn.Close() // 只验证可达性，连上即断，不影响服务端
 	emit(Event{Kind: KindLog, Step: step, Msg: "安全组已放行"})
 
 	return nil
