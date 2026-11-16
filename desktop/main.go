@@ -21,10 +21,10 @@ func main() {
 
 	err := wails.Run(&options.App{
 		Title:     "渡口 · 一键部署",
-		Width:     940,
-		Height:    760,
-		MinWidth:  820,
-		MinHeight: 640,
+		Width:     1180,
+		Height:    780,
+		MinWidth:  1100,
+		MinHeight: 660,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

@@ -5,6 +5,10 @@
 /bin/
 /dist/
 
+# Wails CLI 生成物（wails dev/build 每次重建，不入库；前端源码只有 dist）
+/desktop/build/
+/desktop/frontend/wailsjs/
+
 # 测试与覆盖率
 *.test
 *.out

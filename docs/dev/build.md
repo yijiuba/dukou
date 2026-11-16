@@ -34,6 +34,22 @@ go build -tags gui -trimpath -ldflags "-s -w" -o dukou-desktop ./desktop
 
 **桌面 exe 不支持 CLI 子命令**，它是纯窗口程序，内部调 `deploy` 同一条流水线。
 
+### 桌面开发模式（wails dev）
+
+Wails CLI 装在 `C:\Users\dengbo\go\bin`（`go install github.com/wailsapp/wails/v2/cmd/wails@v2.10.1`）。注意：
+
+- **`wails.json` 在 `desktop/` 目录**（wails CLI 要求它和入口 main 包同目录），dev/build 都在 `desktop/` 下执行；
+- 因为桌面包带 `gui` 构建标签，`wails dev` 必须显式带上标签，否则生成绑定阶段会报
+  "build constraints exclude all Go files"；`-m` 跳过 go mod tidy（离线/代理不稳时更稳）：
+
+```bash
+cd desktop
+wails dev -m -tags gui
+```
+
+`wails dev` / `wails build` 会在 `desktop/build/` 和 `desktop/frontend/wailsjs/` 生成中间产物，两者已 gitignore，不入库（前端源码只有 `dist/`，零构建）。
+
+
 ## 交叉编译（发布物）
 
 发布物必须是纯静态的（目标机器可能是 musl 或没有 libc 开发包）：

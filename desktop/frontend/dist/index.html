@@ -1,385 +1,1785 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<!-- data-proto="0" = 产品形态（真机）；改成 "1" 即回到可点击原型（带模拟外壳） -->
+<html lang="zh-CN" data-proto="0">
 <head>
-<meta charset="utf-8" />
-<title>渡口 · 一键部署</title>
+<meta charset="UTF-8">
+<title>渡口 dukou</title>
 <style>
-  :root {
-    --bg: #f5f6f8;
-    --card: #ffffff;
-    --line: #e4e7ec;
-    --text: #16181d;
-    --muted: #6b7280;
-    --accent: #2563eb;
-    --ok: #15803d;
-    --err: #b91c1c;
-    --warn: #b45309;
+  /* ==== 设计 token（UI v0.2 底座）==== */
+  :root{
+    /* 品牌 */
+    --brand:#0d9488; --brand-deep:#0f766e; --brand-dark:#0b5f59; --brand-2:#0891b2;
+    --brand-50:#f0fdfa; --brand-100:#ccfbf1; --brand-200:#99f6e4;
+    /* 语义 */
+    --ok:#10b981; --warn:#b45309; --danger:#ef4444;
+    /* 中性 */
+    --ink-1:#111827; --ink-2:#374151; --ink-3:#6b7280; --ink-4:#9ca3af;
+    --line:#e5e7eb; --line-soft:#eef0f3; --bg-page:#fbfcfd; --bg-side:#f7f8fa; --bg-soft:#f8fafc;
+    /* 字号：8 级（原 20 级） */
+    --fs-display:26px; --fs-num:20px; --fs-h1:19px; --fs-h2:15px;
+    --fs-nav:14px; --fs-body:13px; --fs-sm:12px; --fs-micro:11px;
+    /* 间距 */
+    --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px;
+    /* 圆角：4 档 */
+    --r-xs:4px; --r-sm:8px; --r-md:12px; --r-pill:999px;
+    /* 阴影：3 档 */
+    --shadow-1:0 1px 2px rgba(17,24,39,.05);
+    --shadow-2:0 8px 24px rgba(17,24,39,.10);
+    --shadow-3:0 20px 48px rgba(17,24,39,.20);
+    /* 动效：全站统一 200ms，位移类用 ease */
+    --t:200ms;
   }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, "Segoe UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
-    font-size: 14px;
-    line-height: 1.6;
+  * { margin:0; padding:0; box-sizing:border-box; font-family:"PingFang SC","HarmonyOS Sans SC","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",system-ui,sans-serif; }
+  /* 键盘可达：所有可交互元素统一焦点环 */
+  :focus-visible { outline:2px solid var(--brand); outline-offset:2px; border-radius:var(--r-xs); }
+  /* 滚动条（WebKitGTK 默认条过宽，必须定制） */
+  .content::-webkit-scrollbar, .ai-msgs::-webkit-scrollbar, .modal-body::-webkit-scrollbar { width:10px; }
+  .content::-webkit-scrollbar-track, .ai-msgs::-webkit-scrollbar-track, .modal-body::-webkit-scrollbar-track { background:transparent; }
+  .content::-webkit-scrollbar-thumb, .ai-msgs::-webkit-scrollbar-thumb, .modal-body::-webkit-scrollbar-thumb { background:#d5d9de; border-radius:var(--r-pill); border:3px solid transparent; background-clip:content-box; }
+  .content::-webkit-scrollbar-thumb:hover, .ai-msgs::-webkit-scrollbar-thumb:hover { background:#bcc2c9; background-clip:content-box; }
+  body { background:#e8eaee; display:flex; justify-content:center; align-items:center; min-height:100vh; padding:24px; }
+  /* 窗口尺寸自适应：基准 1180×780，屏幕更小时等比收缩（1366×768 笔记本必须能用） */
+  .window { width:min(1180px, calc(100vw - 48px)); height:min(780px, calc(100vh - 48px)); background:#fff; border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,.25); display:flex; flex-direction:column; overflow:hidden; position:relative; }
+  .titlebar { height:38px; background:#f5f6f8; border-bottom:1px solid #e3e5e9; display:flex; align-items:center; padding:0 14px; gap:8px; flex-shrink:0; }
+  .dot { width:12px; height:12px; border-radius:50%; }
+  .dot.r { background:#ff5f57; } .dot.y { background:#febc2e; } .dot.g { background:#28c840; }
+  .titlebar span { font-size:13px; color:#6b7280; margin-left:8px; }
+  .body { display:flex; flex:1; min-height:0; }
+  /* 侧边栏 */
+  .sidebar { width:210px; background:#f7f8fa; border-right:1px solid #e5e7eb; padding:16px 10px; flex-shrink:0; display:flex; flex-direction:column; overflow-y:auto; }
+  .brand { display:flex; align-items:center; gap:9px; padding:4px 10px 16px; }
+  .brand-logo { width:34px; height:34px; border-radius:8px; background:linear-gradient(135deg,#0d9488,#0891b2); color:#fff; display:flex; align-items:center; justify-content:center; font-size:17px; }
+  .brand b { font-size:15px; } .brand small { display:block; font-size:11px; color:#6b7280; }
+  .nav-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:var(--r-sm); font-size:var(--fs-nav); color:#374151; cursor:pointer; margin-bottom:2px; }
+  .nav-item:hover { background:#eef0f3; }
+  .nav-item.active { background:#f0fdfa; color:#0f766e; font-weight:600; box-shadow:inset 3px 0 0 #0d9488; }
+
+  /* 图标系统：内联 SVG sprite（emoji 在 WebKitGTK 下可能降级为黑白轮廓，结构性图标不用 emoji） */
+  .sprite { position:absolute; width:0; height:0; overflow:hidden; }
+  svg.i { width:18px; height:18px; flex-shrink:0; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  svg.i.sm { width:14px; height:14px; }
+  svg.i.lg { width:22px; height:22px; }
+  svg.i.xl { width:26px; height:26px; stroke-width:1.6; }
+  .nav-item .ico { width:20px; height:20px; display:flex; align-items:center; justify-content:center; color:#6b7280; }
+  .nav-item:hover .ico { color:#374151; }
+  .nav-item.active .ico { color:#0f766e; }
+  .side-foot { margin-top:2px; padding:10px 12px; font-size:12px; color:#6b7280; border-top:1px solid #e5e7eb; }
+  .side-foot b { color:var(--ink-2); font-weight:600; margin-left:5px; }
+  .side-foot .badge { display:inline-block; background:#fef3c7; color:#92400e; border-radius:4px; padding:1px 6px; margin-top:6px; font-size:11px; }
+  /* 内容区 */
+  .content { flex:1; overflow-y:auto; padding:24px 28px; background:#fbfcfd; display:flex; flex-direction:column; }
+  .page { display:none; } .page.active { display:block; flex:1 0 auto; }
+  h2 { font-size:var(--fs-h1); margin-bottom:4px; } .sub { font-size:13px; color:#6b7280; margin-bottom:20px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:var(--r-md); padding:var(--sp-5); margin-bottom:var(--sp-4); }
+  .card h3 { font-size:var(--fs-h2); margin-bottom:12px; }
+  /* 首页连接区 */
+  .connect-wrap { text-align:center; padding:34px 0 26px; }
+  .power { width:110px; height:110px; border-radius:50%; border:6px solid #e5e7eb; margin:0 auto 16px; display:flex; align-items:center; justify-content:center; font-size:40px; color:#6b7280; cursor:pointer; transition:var(--t); background:#fff; }
+  .power.on { border-color:#0f766e; color:#0f766e; box-shadow:0 0 0 10px rgba(13,148,136,.12); }
+  .conn-state { font-size:15px; font-weight:600; }
+  .conn-tip { font-size:13px; color:#6b7280; margin-top:6px; }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:18px; }
+  .stat { background:#f8fafc; border:1px solid #eef0f3; border-radius:12px; padding:14px; text-align:center; }
+  .stat b { font-size:20px; display:block; } .stat span { font-size:12px; color:#6b7280; }
+  .stat.locked { color:#c3c9d2; }
+  .stat.locked b { font-size:14px; padding-top:4px; }
+  /* 状态横幅（L1）：到期/断网时使用，见设计规范 5.5 */
+  .subbar { display:flex; align-items:center; gap:10px; border-radius:var(--r-md); padding:11px 16px; font-size:13px; margin-bottom:16px; }
+  .subbar.expired { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; }
+  .subbar button { margin-left:auto; }
+  .btn { border:none; border-radius:var(--r-sm); padding:8px 18px; font-size:var(--fs-body); cursor:pointer; background:#0f766e; color:#fff; transition:background .2s; }
+  .btn:hover { background:var(--brand-dark); }
+  .btn:active { background:#0a4f4a; }
+  .btn:focus-visible { outline:2px solid var(--brand-deep); outline-offset:2px; }
+  .btn.ghost:hover { background:#f8fafc; }
+  .btn.ghost { background:#fff; border:1px solid #d1d5db; color:#374151; }
+  .btn.sm { padding:5px 12px; font-size:13px; }
+  .quick { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .quick .q { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px; cursor:pointer; font-size:13px; }
+  .quick .q:hover { border-color:#0f766e; }
+  .quick .q .e { width:34px; height:34px; border-radius:var(--r-sm); background:#f0fdfa; color:#0f766e; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-bottom:8px; }
+  /* 首页紧凑布局：目标一屏不滚动 */
+  /* 首页：flex 纵向撑满，无更新条时卡片自动变高，底部不留空 */
+  #page-home.active { display:flex; flex-direction:column; flex:1 0 auto; }
+  #page-home h2 { font-size:var(--fs-h1); margin-bottom:2px; }
+  #page-home .sub { font-size:13px; margin-bottom:10px; }
+  #page-home .card { padding:18px 20px 16px; margin-bottom:10px; }
+  #page-home .conn-card { flex:1; display:flex; flex-direction:column; }
+  #page-home .connect-wrap { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:10px 0 4px; }
+  #page-home .power { width:140px; height:140px; border-width:7px; font-size:46px; margin-bottom:16px; flex-shrink:0; }
+  #page-home .conn-state { font-size:15px; }
+  #page-home .conn-tip { margin-top:6px; }
+  #page-home .stats { margin-top:18px; gap:12px; width:100%; align-self:stretch; }
+  #page-home .stat { padding:12px 10px; }
+  #page-home .stat b { font-size:20px; }
+  #page-home .quick { gap:10px; grid-template-columns:repeat(4,1fr); }
+  #page-home .quick .q { padding:16px; min-height:96px; display:flex; align-items:center; gap:12px; }
+  #page-home .quick .q .e { margin-bottom:0; }
+  #page-home .quick .q b { display:block; font-size:13px; }
+  #page-home .quick .q span { display:block; font-size:12px; color:#6b7280; margin-top:3px; }
+  /* 窄高屏（可用高度 ≤700px：1024×640、系统缩放 150%）：压缩留白，保证首页仍一屏不滚动 */
+  @media (max-height:700px) {
+    .content { padding:16px 20px; }
+    #page-home h2 { font-size:17px; }
+    #page-home .sub { margin-bottom:8px; }
+    #page-home .card { padding:14px 18px 12px; margin-bottom:8px; }
+    #page-home .connect-wrap { padding:6px 0 2px; }
+    #page-home .stats { margin-top:12px; }
+    #page-home .stat { padding:9px 10px; }
+    #page-home .quick .q { min-height:80px; padding:12px; }
   }
-  .wrap { max-width: 860px; margin: 0 auto; padding: 28px 24px 40px; }
-
-  header { margin-bottom: 20px; }
-  h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: .5px; }
-  .sub { color: var(--muted); font-size: 13px; margin: 0; }
-
-  .card {
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 18px 20px;
-    margin-bottom: 16px;
+  .conn-card { position:relative; }
+  .route-chip { position:absolute; top:13px; right:15px; display:flex; align-items:center; gap:7px; background:#f0fdfa; border:1px solid #ccfbf1; color:#0f766e; font-size:12px; border-radius:99px; padding:4px 6px 4px 10px; }
+  .route-chip a { color:#0f766e; text-decoration:none; border-left:1px solid #99f6e4; padding-left:8px; cursor:pointer; font-size:12px; }
+  /* AI 工具两栏 */
+  .tool-desc { font-size:13px; color:#6b7280; line-height:1.75; margin-bottom:8px; }
+  .tool-side { width:186px; flex-shrink:0; display:flex; flex-direction:column; gap:8px; }
+  .tool-side .opt { text-align:center; }
+  .tool-side .opt.primary { background:#0f766e; color:#fff; border-color:#0f766e; font-weight:500; }
+  .tool-side-note { font-size:11px; color:#6b7280; line-height:1.6; text-align:center; margin-top:2px; }
+  /* 网络配置 */
+  .seg { display:inline-flex; background:#eef0f3; border-radius:8px; padding:3px; margin-bottom:16px; }
+  .seg div { padding:7px 18px; font-size:13px; border-radius:8px; cursor:pointer; color:#6b7280; }
+  .seg div.on { background:#fff; color:#111827; box-shadow:var(--shadow-1); font-weight:600; }
+  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .field label { font-size:13px; color:#6b7280; display:block; margin-bottom:5px; }
+  .field input,.field select { width:100%; border:1px solid #d1d5db; border-radius:var(--r-sm); padding:9px 12px; font-size:var(--fs-body); background:#fff; }
+  .steps { margin-top:6px; }
+  .step { display:flex; gap:10px; align-items:flex-start; padding:9px 0; font-size:13px; border-bottom:1px dashed #eef0f3; }
+  .step .n { width:22px; height:22px; border-radius:50%; background:#eef0f3; color:#6b7280; font-size:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .step.done .n { background:#10b981; color:#fff; }
+  .step.run .n { background:#0f766e; color:#fff; }
+  /* AI 工具 */
+  .warn-bar { background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:12px; padding:11px 16px; font-size:13px; margin-bottom:16px; display:none; }
+  .tool { display:flex; gap:16px; align-items:flex-start; }
+  .tool-icon { width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px; color:#fff; flex-shrink:0; }
+  .tool-info { flex:1; }
+  .tool-info h4 { font-size:15px; margin-bottom:3px; }
+  .tool-info p { font-size:13px; color:#6b7280; margin-bottom:10px; }
+  .tag { display:inline-block; font-size:11px; border-radius:4px; padding:1px 7px; margin-right:5px; background:#ccfbf1; color:#0f766e; }
+  .install-opts { display:flex; gap:8px; flex-wrap:wrap; }
+  .opt { border:1px solid #d1d5db; border-radius:8px; padding:7px 13px; font-size:13px; cursor:pointer; background:#fff; }
+  .opt.primary { border-color:#0f766e; color:#0f766e; }
+  .opt.disabled { color:#c3c9d2; background:#f8fafc; cursor:not-allowed; }
+  .env-line { font-size:12px; color:#6b7280; margin-top:10px; padding-top:8px; border-top:1px dashed #eef0f3; }
+  /* 广告位 */
+  /* 广告位：等高卡片 + 首推分级（原四张卡同权重，反而选不出来） */
+  .shop-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:stretch; }
+  .shop { display:flex; flex-direction:column; border:1px solid var(--line); border-radius:var(--r-md); padding:16px 18px 18px; background:#fff; position:relative; }
+  .shop.rec-card { border:1.5px solid #0f766e; box-shadow:0 2px 12px rgba(13,148,136,.10); }
+  .shop-top { display:flex; align-items:center; gap:8px; min-height:20px; margin-bottom:10px; }
+  .shop .rec { background:#0f766e; color:#fff; font-size:11px; border-radius:var(--r-xs); padding:2px 8px; font-weight:500; }
+  .ad-tag { margin-left:auto; font-size:11px; color:#4b5563; border:1px solid #d1d5db; border-radius:var(--r-xs); padding:1px 6px; background:#f3f4f6; }
+  .shop h4 { font-size:15px; margin-bottom:2px; }
+  .price { font-size:20px; font-weight:700; color:var(--ink-1); margin:8px 0 0; }
+  .shop.rec-card .price { font-size:26px; color:#dc2626; }
+  .price small { font-size:12px; color:var(--ink-3); font-weight:400; }
+  .price-sub { font-size:12px; color:var(--ink-3); margin-top:3px; }
+  .shop ul { flex:1; font-size:13px; color:#4b5563; margin:12px 0 16px; padding-left:18px; line-height:1.9; }
+  .shop > button { width:100%; }
+  .disclosure { font-size:11px; color:var(--ink-3); margin-top:8px; text-align:center; }
+  .promo-note { font-size:11px; color:#6b7280; line-height:1.85; margin-top:14px; padding-top:10px; border-top:1px dashed #e5e7eb; }
+  /* 增值服务 */
+  .svc-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .svc { border:1px solid #e5e7eb; border-radius:12px; padding:20px; background:#fff; }
+  .svc h4 { font-size:15px; margin-bottom:6px; }
+  .svc p { font-size:13px; color:#6b7280; line-height:1.8; margin-bottom:12px; }
+  .svc .p { font-size:20px; font-weight:700; color:#111827; margin-bottom:12px; }
+  .soon { opacity:.55; }
+  /* 我的 */
+  .me-head { display:flex; align-items:center; gap:14px; }
+  .avatar { width:52px; height:52px; border-radius:50%; background:#ccfbf1; color:#0f766e; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700; }
+  .level-bar { height:8px; max-width:340px; background:#eef0f3; border-radius:99px; overflow:hidden; margin:8px 0 6px; }
+  .level-bar i { display:block; height:100%; width:42%; background:linear-gradient(90deg,#0d9488,#0891b2); border-radius:99px; }
+  .promo-link { display:flex; gap:8px; }
+  .promo-link input { flex:1; border:1px solid #d1d5db; border-radius:8px; padding:9px 12px; font-size:13px; background:#f8fafc; color:#6b7280; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { text-align:left; padding:9px 10px; border-bottom:1px solid #f1f2f5; }
+  th { color:#6b7280; font-size:12px; font-weight:500; }
+  /* 我的服务器 */
+  .srv { display:flex; align-items:center; gap:14px; padding:14px 0; border-bottom:1px solid #f1f2f5; }
+  .srv:last-child { border-bottom:none; }
+  .srv .flag { width:40px; height:40px; border-radius:12px; background:#ccfbf1; color:#0f766e; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; text-align:center; line-height:1.2; }
+  .srv .meta { flex:1; min-width:0; }
+  .srv .meta b { font-size:14px; }
+  .srv .meta .mline { font-size:12px; color:#6b7280; margin-top:4px; }
+  .srv .ops { display:flex; gap:8px; align-items:center; flex-shrink:0; }
+  /* 到期锁定演示：非保留服务器转只读 + 灰锁图标 */
+  .srv.locked .flag { filter:grayscale(1); opacity:.5; }
+  .srv.locked .meta { opacity:.55; }
+  .srv.locked .meta b::before { content:''; display:inline-block; width:12px; height:12px; margin-right:5px; vertical-align:-1px; background:#9ca3af; -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Crect x='4.6' y='10.4' width='14.8' height='9.6' rx='2.2'/%3E%3Cpath d='M8.2 10.4V7.6a3.8 3.8 0 0 1 7.6 0v2.8'/%3E%3C/svg%3E") center/contain no-repeat; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Crect x='4.6' y='10.4' width='14.8' height='9.6' rx='2.2'/%3E%3Cpath d='M8.2 10.4V7.6a3.8 3.8 0 0 1 7.6 0v2.8'/%3E%3C/svg%3E") center/contain no-repeat; }
+  /* 锁定态：只读的视觉表达靠「虚线边框 + 灰度 + 禁用按钮」，不用斜纹（图案会压过文字） */
+  .srv.locked { background:#fafbfc; border:1px dashed #e0e4e8; border-radius:var(--r-md); padding-left:10px; padding-right:10px; }
+  .srv.locked .ops .btn { opacity:.55; pointer-events:none; filter:grayscale(1); }
+  .pill { font-size:12px; border-radius:99px; padding:2px 9px; display:inline-block; }
+  .pill.on { background:#ecfdf5; color:#047857; }
+  .pill.off { background:#f3f4f6; color:#6b7280; }
+  .pill.warn { background:#fef3c7; color:#b45309; }
+  .pill.err { background:#fef2f2; color:#b91c1c; }
+  .lock-note { font-size:12px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:10px 14px; margin-top:14px; line-height:1.7; }
+  /* 持有服务条 */
+  .held-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:10px 14px; margin-bottom:14px; font-size:13px; color:#92400e; }
+  .held-pill { background:#fff; border:1px solid #fde68a; border-radius:99px; padding:3px 11px; }
+  .held-pill.ok { border-color:#bbf7d0; background:#f0fdf4; color:#15803d; }
+  .held-bar a { margin-left:auto; color:#0f766e; text-decoration:none; font-size:12px; cursor:pointer; }
+  /* 步骤条 */
+  .flow-bar { display:flex; align-items:center; gap:9px; flex-wrap:wrap; background:#f6fdfb; border:1px solid #99f6e4; border-radius:12px; padding:9px 14px; margin-bottom:14px; font-size:13px; }
+  .flow-bar .fs { display:inline-flex; align-items:center; gap:6px; color:#0f766e; font-weight:500; }
+  .flow-bar .fs.off { color:#6b7280; font-weight:400; }
+  .flow-bar .fs i { font-style:normal; font-size:11px; background:#0f766e; color:#fff; border-radius:99px; padding:1px 6px; }
+  .flow-bar .arrow { color:#5eead4; }
+  .flow-bar .fs-note { color:#6b7280; }
+  .flow-bar button { margin-left:auto; flex-shrink:0; }
+  .backup-item { display:flex; align-items:flex-start; gap:12px; padding:13px 0; border-bottom:1px solid #f1f2f5; }
+  .backup-item:last-child { border-bottom:none; }
+  .backup-item .bi-ico { width:34px; height:34px; border-radius:8px; background:#ccfbf1; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+  .backup-item .bi-main { flex:1; }
+  .backup-item .bi-main b { font-size:14px; }
+  .backup-item .bi-main div { font-size:12px; color:#6b7280; margin-top:3px; line-height:1.6; }
+  /* 版本与更新 */
+  .ver-row { display:flex; gap:10px; padding:4px 0; font-size:13px; }
+  .ver-row .k { width:82px; color:#6b7280; flex-shrink:0; }
+  .ver-row .v { color:#111827; font-family:ui-monospace,SFMono-Regular,monospace; }
+  .upd-state { display:flex; align-items:center; gap:12px; background:#f8fafc; border:1px solid #eef0f3; border-radius:12px; padding:12px 14px; margin-top:14px; }
+  .prog { height:8px; background:#eef0f3; border-radius:99px; overflow:hidden; margin-top:10px; display:none; }
+  .prog i { display:block; height:100%; width:0; background:linear-gradient(90deg,#0d9488,#0891b2); border-radius:99px; transition:width .3s linear; }
+  /* 更新提醒：降级为单行细条（原来是一条彩色横幅，与试用条叠着把圆环往下推） */
+  .upd-bar { display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--line); border-radius:var(--r-sm); padding:7px 12px; margin-bottom:10px; font-size:12px; color:var(--ink-3); }
+  .upd-bar .ub-ico { display:flex; color:var(--brand-deep); }
+  .upd-bar b { font-size:12px; color:var(--ink-1); font-weight:600; }
+  .upd-bar .ub-desc { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .upd-bar .ub-link { margin-left:auto; color:var(--brand-deep); text-decoration:none; cursor:pointer; font-weight:500; white-space:nowrap; }
+  .upd-bar .ub-link:hover { text-decoration:underline; }
+  .upd-bar .ub-x { color:var(--ink-3); text-decoration:none; cursor:pointer; padding-left:9px; margin-left:2px; border-left:1px solid var(--line); white-space:nowrap; }
+  .upd-bar .ub-x:hover { color:var(--ink-1); }
+  /* 试用提示：收进连接卡底部，不再单独占一条横幅 */
+  .trial-line { display:flex; align-items:center; gap:8px; margin-top:14px; padding-top:12px; border-top:1px dashed var(--line-soft); font-size:12px; color:var(--ink-3); }
+  .trial-line > svg { color:var(--brand-deep); }
+  .trial-line b { color:var(--ink-1); }
+  .trial-line button { margin-left:auto; flex-shrink:0; }
+  .modal-mask { position:fixed; inset:0; background:rgba(17,24,39,.45); display:flex; align-items:center; justify-content:center; z-index:20; opacity:0; visibility:hidden; transition:opacity var(--t) ease, visibility var(--t); }
+  .modal-mask.show { opacity:1; visibility:visible; }
+  .modal-mask.show .modal { transform:none; }
+  .modal:focus { outline:none; }
+  .modal { position:relative; transform:translateY(8px) scale(.985); transition:transform var(--t) ease; width:470px; background:#fff; border-radius:var(--r-md); box-shadow:var(--shadow-3); overflow:hidden; }
+  /* 统一关闭按钮：所有弹窗右上角同位置同尺寸，Esc 亦可关闭 */
+  .m-close { position:absolute; top:11px; right:11px; z-index:2; width:26px; height:26px; display:flex; align-items:center; justify-content:center; border:none; background:transparent; color:var(--ink-3); border-radius:var(--r-sm); cursor:pointer; }
+  .m-close:hover { background:#f3f4f6; color:var(--ink-1); }
+  /* 新手引导 */
+  .ob-pane { display:none; }
+  .ob-pane.on { display:block; }
+  .ob-path { display:flex; gap:10px; margin:14px 0 4px; }
+  .ob-path .p { flex:1; border:1.5px solid #e5e7eb; border-radius:12px; padding:16px 14px; cursor:pointer; text-align:center; transition:var(--t); }
+  .ob-path .p:hover { border-color:#0f766e; background:#f0fdfa; }
+  .ob-path .p .e { color:#0f766e; display:flex; justify-content:center; }
+  .ob-path .p b { display:block; font-size:14px; margin:8px 0 4px; }
+  .ob-path .p span { font-size:12px; color:#6b7280; line-height:1.6; display:block; }
+  .ob-list { font-size:13px; color:#374151; line-height:1.9; padding-left:2px; }
+  .ob-list .n { display:inline-flex; width:20px; height:20px; border-radius:50%; background:#0f766e; color:#fff; font-size:12px; align-items:center; justify-content:center; margin-right:8px; vertical-align:-4px; }
+  .ob-list li { list-style:none; margin-bottom:10px; }
+  .ob-dots { display:flex; gap:6px; align-items:center; margin-right:auto; }
+  .ob-dots i { width:7px; height:7px; border-radius:50%; background:#e5e7eb; }
+  .ob-dots i.on { background:#0d9488; }
+  .modal-head { padding:16px 48px 16px 20px; border-bottom:1px solid #f1f2f5; font-size:15px; font-weight:600; display:flex; align-items:center; gap:8px; }
+  .modal-body { padding:18px 20px; }
+  .modal-body .ver-row .k { width:66px; }
+  .modal-body h4 { font-size:13px; color:#6b7280; font-weight:500; margin:16px 0 8px; }
+  .modal-body ul { padding-left:18px; font-size:13px; color:#374151; line-height:2; }
+  .modal-note { margin-top:14px; background:#f8fafc; border:1px solid #eef0f3; border-radius:8px; padding:10px 12px; font-size:12px; color:#6b7280; line-height:1.7; }
+  .modal-foot { padding:13px 20px; border-top:1px solid #f1f2f5; display:flex; gap:8px; justify-content:flex-end; background:#fbfcfd; }
+  .modal.wide { width:580px; }
+  /* 页面标题（跟随内容滚动，不吸顶） */
+  .page-head h2 { margin-bottom:4px; }
+  .page-head .sub { margin-bottom:20px; }
+  /* 轻提示 */
+  .toast { position:fixed; left:50%; bottom:42px; transform:translateX(-50%) translateY(14px); background:rgba(17,24,39,.93); color:#fff; font-size:13px; padding:11px 18px; border-radius:12px; opacity:0; pointer-events:none; transition:var(--t); z-index:60; max-width:560px; line-height:1.7; box-shadow:var(--shadow-2); }
+  /* 小渡助手（侧边栏入口 + 右侧抽屉） */
+  .side-helper { display:flex; align-items:center; gap:9px; margin:auto 4px 10px; padding:9px 10px; border:1px solid #99f6e4; background:#f0fdfa; border-radius:12px; cursor:pointer; transition:var(--t); }
+  .side-helper:hover { background:#ccfbf1; border-color:#5eead4; }
+  .side-helper .h-ico { width:30px; height:30px; border-radius:8px; background:linear-gradient(135deg,#0d9488,#0891b2); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+  .side-helper b { display:block; font-size:13px; color:#0f766e; }
+  .side-helper span { display:block; font-size:11px; color:#6b7280; margin-top:1px; }
+  .ai-panel { position:absolute; top:38px; right:0; bottom:0; width:372px; background:#fff; border-left:1px solid #e5e7eb; box-shadow:-12px 0 32px rgba(17,24,39,.12); display:flex; flex-direction:column; overflow:hidden; z-index:30; transform:translateX(102%); transition:transform var(--t) ease; }
+  .ai-panel.show { transform:translateX(0); }
+  .ai-close { margin-left:auto; cursor:pointer; opacity:.85; font-size:16px; line-height:1; }
+  .ai-close:hover { opacity:1; }
+  .ai-head { padding:13px 16px; background:linear-gradient(135deg,#0d9488,#0891b2); color:#fff; }
+  .ai-head b { font-size:14px; }
+  .ai-head span { display:block; font-size:11px; opacity:.85; margin-top:2px; }
+  .ai-msgs { flex:1; overflow-y:auto; padding:14px; background:#f8fafc; }
+  .ai-msg { max-width:86%; border-radius:12px; padding:10px 13px; font-size:13px; line-height:1.8; margin-bottom:10px; }
+  .ai-msg.bot { background:#fff; border:1px solid #eef0f3; color:#374151; border-top-left-radius:4px; }
+  .ai-msg.user { background:#0f766e; color:#fff; margin-left:auto; border-top-right-radius:4px; }
+  .ai-msg.bot b { color:#0f766e; }
+  .ai-msg .act { display:inline-block; margin-top:7px; background:#0f766e; color:#fff; border-radius:8px; padding:5px 12px; font-size:12px; cursor:pointer; }
+  .ai-chips { display:flex; flex-wrap:wrap; gap:6px; padding:10px 12px 4px; border-top:1px solid #f1f2f5; background:#fff; }
+  .ai-chips span { font-size:12px; color:#0f766e; background:#f0fdfa; border:1px solid #99f6e4; border-radius:99px; padding:4px 10px; cursor:pointer; }
+  .ai-chips span:hover { background:#ccfbf1; }
+  .ai-input { display:flex; gap:8px; padding:10px 12px; background:#fff; }
+  .ai-input input { flex:1; border:1px solid #d1d5db; border-radius:8px; padding:8px 11px; font-size:13px; }
+  .ai-input button { border:none; background:#0f766e; color:#fff; border-radius:8px; padding:0 14px; font-size:13px; cursor:pointer; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  /* 弹窗内的表单与清单 */
+  .m-form { display:grid; grid-template-columns:1fr 1fr; gap:12px 14px; }
+  .m-form .field.full { grid-column:1 / -1; }
+  .m-form label { display:block; font-size:12px; color:#6b7280; margin-bottom:5px; }
+  .m-form input, .m-form select { width:100%; border:1px solid #d1d5db; border-radius:8px; padding:8px 10px; font-size:13px; font-family:inherit; color:#111827; background:#fff; }
+  .m-list { border:1px solid #eef0f3; border-radius:12px; overflow:hidden; }
+  .m-item { display:flex; align-items:center; gap:10px; padding:11px 13px; font-size:13px; border-bottom:1px solid #f1f2f5; }
+  .m-item:last-child { border-bottom:none; }
+  .m-item .nm { flex:1; color:#111827; }
+  .m-item .st { font-size:12px; }
+  .m-item .st.ok { color:#10b981; } .m-item .st.bad { color:#ef4444; } .m-item .st.wait { color:#6b7280; }
+  .m-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .m-table th { text-align:left; font-weight:500; color:#6b7280; font-size:12px; padding:7px 8px; background:#f8fafc; }
+  .m-table td { padding:8px; border-bottom:1px solid #f1f2f5; color:#374151; }
+  .m-table tr:last-child td { border-bottom:none; }
+  .mini-note { font-size:12px; color:#6b7280; line-height:1.8; }
+  .mini-note > svg, .lock-note > svg, .warn-bar > svg { vertical-align:-2px; margin-right:6px; }
+  .btn > svg, .opt > svg { vertical-align:-3px; margin-right:6px; }
+  .t-item > svg { margin-right:8px; color:#6b7280; vertical-align:-3px; }
+  .t-head > svg { margin-right:7px; vertical-align:-2px; }
+  .ignored-line { font-size:12px; color:#6b7280; margin-top:10px; display:none; }
+  .ignored-line a { color:#0f766e; text-decoration:none; }
+  /* 设置 */
+  .set-row { display:flex; align-items:center; justify-content:space-between; padding:13px 0; border-bottom:1px solid #f1f2f5; font-size:14px; }
+  .set-row-sub { font-size:12px; color:#6b7280; margin-top:3px; }
+  .switch { width:42px; height:24px; border-radius:99px; background:#d1d5db; position:relative; cursor:pointer; flex-shrink:0; }
+  .switch::after { content:""; position:absolute; width:18px; height:18px; border-radius:50%; background:#fff; top:3px; left:3px; transition:var(--t); }
+  .switch.on { background:#0d9488; } .switch.on::after { left:21px; }
+  .radio-row { display:flex; gap:10px; }
+  .radio-card { flex:1; border:1px solid #d1d5db; border-radius:12px; padding:12px 14px; font-size:13px; cursor:pointer; }
+  .radio-card.on { border-color:#0f766e; background:#f0fdfa; }
+  .radio-card b { display:block; margin-bottom:3px; }
+  .radio-card span { font-size:12px; color:#6b7280; }
+  /* 托盘示意 */
+  .tray-demo { position:fixed; right:26px; bottom:26px; width:280px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; box-shadow:var(--shadow-2); overflow:hidden; display:none; z-index:9; }
+  .tray-demo.show { display:block; }
+  .tray-demo .t-head { background:#f5f6f8; padding:10px 14px; font-size:13px; color:#374151; display:flex; align-items:center; gap:8px; }
+  .tray-demo .t-item { padding:10px 14px; font-size:13px; border-top:1px solid #f1f2f5; cursor:pointer; }
+  .tray-demo .t-item:hover { background:#f8fafc; }
+  .proto-note { position:fixed; left:26px; bottom:26px; background:#111827; color:#e5e7eb; font-size:12px; border-radius:12px; padding:10px 16px; opacity:.92; }
+  .proto-note b { color:#fff; }
+  /* 文字链与局部可点元素：补 hover，避免"能点但没反馈" */
+  .route-chip a:hover, .held-bar a:hover, .page-head a:hover, .promo-link a:hover { color:var(--brand-dark); text-decoration:underline; }
+  /* ==== 交互三态（hover / active / disabled）统一 ==== */
+  .btn { transition:background var(--t), transform 120ms; }
+  .btn:active:not([disabled]) { transform:translateY(1px); }
+  .btn[disabled], .btn.disabled, .opt.disabled { opacity:.45; cursor:not-allowed; pointer-events:none; }
+  .opt { transition:border-color var(--t), background var(--t), color var(--t); }
+  .opt:hover { border-color:#0f766e; color:#0f766e; background:#f0fdfa; }
+  .quick .q { transition:border-color var(--t), box-shadow var(--t), transform var(--t); }
+  .quick .q:hover { box-shadow:var(--shadow-1); transform:translateY(-1px); }
+  .quick .q:active { transform:translateY(0); }
+  .radio-card { transition:border-color var(--t), background var(--t); }
+  .radio-card:hover { border-color:#9ca3af; }
+  .radio-card.on:hover { border-color:#0f766e; }
+  .seg div { transition:background var(--t), color var(--t); }
+  .seg div:hover { color:var(--ink-1); }
+  .nav-item { transition:background var(--t), color var(--t); }
+  .svc { transition:border-color var(--t), box-shadow var(--t); }
+  .svc:hover:not(.soon) { border-color:#d1d5db; box-shadow:var(--shadow-1); }
+  .ai-chips span, .promo-link, .t-item, .ai-close { transition:background var(--t), color var(--t); }
+  /* 输入框聚焦：品牌色描边 + 3px 柔光，替代默认 outline */
+  .field input:focus-visible, .field select:focus-visible, .m-form input:focus-visible,
+  .m-form select:focus-visible, .ai-input input:focus-visible, .promo-link input:focus-visible {
+    outline:none; border-color:#0f766e; box-shadow:0 0 0 3px rgba(13,148,136,.12);
   }
+  .field input, .field select, .m-form input, .m-form select, .ai-input input { transition:border-color var(--t), box-shadow var(--t); }
 
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
-  .full { grid-column: 1 / -1; }
-  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
-  input[type=text], input[type=password], input[type=number], textarea {
-    width: 100%;
-    padding: 8px 10px;
-    border: 1px solid var(--line);
-    border-radius: 7px;
-    font-size: 13px;
-    font-family: inherit;
-    background: #fff;
-    color: var(--text);
-    outline: none;
-    transition: border-color .15s;
-  }
-  input:focus, textarea:focus { border-color: var(--accent); }
-  textarea { resize: vertical; min-height: 74px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
-  .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
-
-  .row-inline { display: flex; gap: 10px; }
-  .row-inline > div:first-child { flex: 1; }
-  .row-inline > div:last-child { width: 110px; }
-
-  .check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
-  .check input { width: 15px; height: 15px; accent-color: var(--accent); }
-
-  details { margin-top: 6px; }
-  summary { cursor: pointer; font-size: 12px; color: var(--muted); user-select: none; }
-  summary:hover { color: var(--accent); }
-  .adv { margin-top: 12px; padding-top: 14px; border-top: 1px dashed var(--line); }
-
-  button {
-    font-family: inherit;
-    font-size: 14px;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 22px;
-    cursor: pointer;
-    background: var(--accent);
-    color: #fff;
-    font-weight: 500;
-    transition: filter .15s;
-  }
-  button:hover { filter: brightness(1.08); }
-  button:disabled { opacity: .55; cursor: not-allowed; }
-  button.ghost { background: #eef1f6; color: var(--text); }
-
-  .actions { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
-  .status-line { font-size: 12px; color: var(--muted); }
-
-  /* 进度 */
-  .steps { display: none; }
-  .steps.on { display: block; }
-  .step { display: flex; gap: 12px; padding: 9px 0; border-bottom: 1px solid #f1f3f6; }
-  .step:last-child { border-bottom: none; }
-  .dot {
-    width: 18px; height: 18px; flex: 0 0 18px; margin-top: 2px;
-    border-radius: 50%; border: 2px solid var(--line);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 11px; color: #fff;
-  }
-  .step.run .dot { border-color: var(--accent); border-right-color: transparent; animation: spin .8s linear infinite; }
-  .step.ok  .dot { border-color: var(--ok); background: var(--ok); }
-  .step.ok  .dot::after { content: "✓"; }
-  .step.err .dot { border-color: var(--err); background: var(--err); }
-  .step.err .dot::after { content: "!"; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .step-body { flex: 1; min-width: 0; }
-  .step-name { font-size: 13px; font-weight: 500; }
-  .step-msg { font-size: 12px; color: var(--muted); }
-  .step.err .step-msg { color: var(--err); }
-
-  /* 日志 */
-  .logbox { display: none; margin-top: 6px; }
-  .logbox.on { display: block; }
-  .log {
-    background: #12161d;
-    color: #cfd6e2;
-    border-radius: 8px;
-    padding: 12px 14px;
-    height: 190px;
-    overflow-y: auto;
-    font-family: ui-monospace, Menlo, Consolas, monospace;
-    font-size: 12px;
-    line-height: 1.75;
-    white-space: pre-wrap;
-    word-break: break-all;
-  }
-  .log .t { color: #5b6675; margin-right: 8px; }
-  .log .ok { color: #6ee7a8; }
-  .log .er { color: #fca5a5; }
-
-  /* 结果 */
-  .result { display: none; }
-  .result.on { display: block; border-color: #b7e4c7; background: #f4fbf6; }
-  .kv { display: grid; grid-template-columns: 96px 1fr; gap: 6px 12px; font-size: 13px; margin: 10px 0 14px; }
-  .kv dt { color: var(--muted); }
-  .kv dd { margin: 0; font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
-  .next { font-size: 12px; color: var(--muted); border-top: 1px solid #d8eede; padding-top: 12px; }
-  .next code { background: #e8f5ec; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+  /* ==== 脱壳：真机形态 ====
+     原型为了让浏览器里看着像桌面软件，套了一层模拟外壳（灰底居中 + 假标题栏 + 窗口圆角阴影）。
+     Wails 真机上有系统窗口，这层外壳不剥掉就是「窗口套窗口」。
+     保留 data-proto 开关：改成 "1" 就回到可点击原型，同一份文件两种用途。 */
+  html[data-proto="0"] body { background:var(--bg-page); display:block; padding:0; min-height:100vh; }
+  html[data-proto="0"] .window { width:100%; height:100vh; border-radius:0; box-shadow:none; }
+  html[data-proto="0"] .titlebar { display:none; }        /* 标题栏交给系统 */
+  html[data-proto="0"] .side-foot .badge { display:none; } /* 原型里的托盘演示提示，不属于产品 */
+  html[data-proto="0"] .tray-demo { display:none; }        /* 托盘菜单是原型示意，真机未做 */
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>渡口 · 一键部署</h1>
-    <p class="sub">填三样东西，剩下的交给程序：服务器装代理、本机配代理、装好 Codex。</p>
-  </header>
+<!-- 图标集：24×24 线性图标，stroke 继承 currentColor，全量替换结构性 emoji -->
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.7 12 4l8 6.7V20a1 1 0 0 1-1 1h-4.6v-5.6H9.6V21H5a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M3.7 12h16.6"/><path d="M12 3.6c2.3 2.5 3.5 5.3 3.5 8.4S14.3 18 12 20.4C9.7 17.9 8.5 15.1 8.5 12S9.7 6.1 12 3.6z"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><rect x="4" y="7.6" width="16" height="12.4" rx="3.2"/><path d="M12 3.6v4"/><circle cx="9" cy="13.6" r="1.1"/><circle cx="15" cy="13.6" r="1.1"/><path d="M9.6 17.2h4.8"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24"><rect x="3.6" y="4.4" width="16.8" height="6.2" rx="2"/><rect x="3.6" y="13.4" width="16.8" height="6.2" rx="2"/><circle cx="7" cy="7.5" r=".9"/><circle cx="7" cy="16.5" r=".9"/></symbol>
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12.4h3.4l2-5.4 3.4 10.6 2-5.2H21"/></symbol>
+  <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9.6" cy="19" r="1.3"/><circle cx="17.2" cy="19" r="1.3"/><path d="M3 4.6h2.3l2.3 10.2h10.2l1.9-7.4H6.2"/></symbol>
+  <symbol id="i-gift" viewBox="0 0 24 24"><rect x="3.6" y="9.2" width="16.8" height="3.6" rx="1"/><path d="M5.4 12.8V20h13.2v-7.2"/><path d="M12 9.2V20"/><path d="M12 9.2S10.9 4.4 8.7 4.4a2.3 2.3 0 0 0 0 4.8zM12 9.2s1.1-4.8 3.3-4.8a2.3 2.3 0 0 1 0 4.8z"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.4" r="3.7"/><path d="M4.8 20.4c0-3.5 3.2-5.9 7.2-5.9s7.2 2.4 7.2 5.9"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7.6h7.6M17 7.6h3M4 16.4h3M12.4 16.4H20"/><circle cx="14.3" cy="7.6" r="2.3"/><circle cx="9.7" cy="16.4" r="2.3"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.4" width="14.8" height="9.6" rx="2.2"/><path d="M8.2 10.4V7.6a3.8 3.8 0 0 1 7.6 0v2.8"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3.8l1.9 4.9 4.9 1.9-4.9 1.9L12 17.4l-1.9-4.9-4.9-1.9 4.9-1.9z"/><path d="M18.4 16.4l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M4 9.4V6.6h16v2.8a2.9 2.9 0 0 0 0 5.2v2.8H4v-2.8a2.9 2.9 0 0 0 0-5.2z"/><path d="M13.4 6.9v10.2" stroke-dasharray="1.6 2.2"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4.6h7.6a2.2 2.2 0 0 1 2.2 2.2V20H7.2A2.2 2.2 0 0 1 5 17.8z"/><path d="M14.8 4.6H18a1 1 0 0 1 1 1V20h-3.6"/></symbol>
+  <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M15.4 8.6l-1.8 5-5 1.8 1.8-5z"/></symbol>
+  <symbol id="i-card" viewBox="0 0 24 24"><rect x="3.4" y="5.6" width="17.2" height="12.8" rx="2.4"/><path d="M3.4 9.8h17.2"/><path d="M6.6 15h3.4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.6 12.6l4.6 4.6L19.4 6.8"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4.4 21 19.6H3z"/><path d="M12 10v3.6"/><circle cx="12" cy="16.4" r=".9" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v10.4"/><path d="M7.8 10.6 12 14.8l4.2-4.2"/><path d="M4.4 19.6h15.2"/></symbol>
+  <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3.6" y="4.4" width="16.8" height="4.4" rx="1.2"/><path d="M5.2 8.8V19h13.6V8.8"/><path d="M10 12.6h4"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10.2 13.8a3.6 3.6 0 0 0 5.1 0l2.6-2.6a3.6 3.6 0 0 0-5.1-5.1l-1.3 1.3"/><path d="M13.8 10.2a3.6 3.6 0 0 0-5.1 0l-2.6 2.6a3.6 3.6 0 0 0 5.1 5.1l1.3-1.3"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><path d="M12 7.4V12l3.2 2"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20.4 12.4c0 3.8-3.8 6.9-8.4 6.9-1.1 0-2.2-.2-3.2-.5l-4.4 1.8 1.4-3.6a6.4 6.4 0 0 1-1-3.7c0-3.8 3.8-6.9 8.4-6.9s7.2 3.1 7.2 6.9z"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3.4" y="4.6" width="17.2" height="14.8" rx="2.4"/><path d="M7 9.4l2.6 2.6L7 14.6"/><path d="M12.6 15h4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.4 6.4l11.2 11.2M17.6 6.4 6.4 17.6"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M9.4 5.6 15.8 12l-6.4 6.4"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.4 3.2 5.8 13.4h5.2l-.6 7.4 7.8-10.4h-5.2z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.2"/><path d="M15.4 15.4 20.6 20.6"/></symbol>
+</svg>
+<div class="window">
+  <div class="titlebar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>dukou 渡口 · v0.2 原型（演示数据）</span>
+    <span style="margin-left:auto;font-size:12px;color:#6b7280">演示：左侧导航切换页面 · 首页电源按钮切连接 · <a href="javascript:void(0)" style="color:#0f766e;text-decoration:none" onclick="document.getElementById('trayDemo').classList.toggle('show')">托盘菜单</a></span>
+  </div>
+  <div class="body">
+    <div class="sidebar">
+      <div class="brand">
+        <div class="brand-logo">渡</div>
+        <div><b>dukou 渡口</b><small>国内机器一键接入海外大模型</small></div>
+      </div>
+      <div class="nav-item active" data-page="home"><span class="ico"><svg class="i"><use href="#i-home"/></svg></span>首页</div>
+      <div class="nav-item" data-page="network"><span class="ico"><svg class="i"><use href="#i-globe"/></svg></span>网络配置</div>
+      <div class="nav-item" data-page="ai"><span class="ico"><svg class="i"><use href="#i-bot"/></svg></span>AI 工具</div>
+      <div class="nav-item" data-page="servers"><span class="ico"><svg class="i"><use href="#i-server"/></svg></span>代理服务器</div>
+      <div class="nav-item" data-page="doctor"><span class="ico"><svg class="i"><use href="#i-pulse"/></svg></span>健康诊断</div>
+      <div class="nav-item" data-page="shop"><span class="ico"><svg class="i"><use href="#i-cart"/></svg></span>服务器购买</div>
+      <div class="nav-item" data-page="svc"><span class="ico"><svg class="i"><use href="#i-gift"/></svg></span>增值服务</div>
+      <div class="nav-item" data-page="me"><span class="ico"><svg class="i"><use href="#i-user"/></svg></span>我的</div>
+      <div class="nav-item" data-page="set"><span class="ico"><svg class="i"><use href="#i-sliders"/></svg></span>设置</div>
+      <div class="side-helper" onclick="toggleAssistant()">
+        <div class="h-ico"><svg class="i lg"><use href="#i-bot"/></svg></div>
+        <div><b>小渡助手</b><span>遇到问题点我</span></div>
+      </div>
+      <div class="side-foot">
+        订阅状态<b id="sideTrial">试用未领取</b><br>
+        <span class="badge">托盘演示见右下角按钮</span>
+      </div>
+    </div>
+    <div class="content">
 
-  <div class="card">
-    <div class="grid">
-      <div class="full">
-        <label for="host">服务器 IP</label>
-        <div class="row-inline">
-          <div><input id="host" type="text" placeholder="例如 203.0.113.10" /></div>
-          <div><label for="sshPort">SSH 端口</label><input id="sshPort" type="number" value="22" /></div>
+      <!-- 首页 -->
+      <div class="page active" id="page-home">
+        <div class="page-head"><h2>首页</h2>
+          <div class="sub">手动连接更安全，不常驻后台 · 代理不限速，订阅只解锁桌面端增值功能</div></div>
+        <div class="upd-bar" id="updHome">
+          <span class="ub-ico"><svg class="i sm"><use href="#i-sparkle"/></svg></span>
+          <b>v0.2.1 可用</b>
+          <span class="ub-desc">多服务器批量体检 · 备份提速</span>
+          <a class="ub-link" onclick="openUpdate()">查看更新 ›</a>
+          <a class="ub-x" onclick="dismissUpdate()" title="忽略此版本">忽略</a>
         </div>
-        <div class="hint">阿里云的海外服务器，填公网 IP 即可。</div>
-      </div>
 
-      <div>
-        <label for="sshUser">SSH 账号</label>
-        <input id="sshUser" type="text" value="root" />
-      </div>
-      <div>
-        <label for="sshPass">SSH 密码</label>
-        <input id="sshPass" type="password" placeholder="服务器的登录密码" />
-      </div>
-
-      <div class="full">
-        <label class="check">
-          <input id="useKey" type="checkbox" />
-          <span>改用私钥登录（服务器禁用了密码登录时使用）</span>
-        </label>
-        <div id="keyBox" style="display:none; margin-top:10px;">
-          <textarea id="sshKey" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"></textarea>
-          <div class="hint">粘贴私钥全文。内容只在本机使用，不会上传到任何地方。</div>
-        </div>
-      </div>
-
-      <div class="full">
-        <label for="localSudo">本机密码（安装服务用）</label>
-        <input id="localSudo" type="password" placeholder="当前电脑的登录密码，留空表示免密 sudo" />
-        <div class="hint">在本机装后台服务需要管理员权限，这不是服务器密码。</div>
-      </div>
-
-      <div class="full">
-        <label class="check">
-          <input id="installCodex" type="checkbox" checked />
-          <span>同时安装 Codex（已安装则跳过）</span>
-        </label>
-      </div>
-
-      <div class="full">
-        <details>
-          <summary>高级设置</summary>
-          <div class="grid adv">
-            <div>
-              <label for="port">代理端口</label>
-              <input id="port" type="number" value="8443" />
-            </div>
-            <div>
-              <label for="user">代理用户名</label>
-              <input id="user" type="text" value="dukou" />
-            </div>
-            <div class="full">
-              <label for="pass">代理密码</label>
-              <input id="pass" type="text" placeholder="留空自动生成 16 位随机密码" />
+        <div class="card conn-card">
+          <div class="route-chip"><svg class="i sm"><use href="#i-globe"/></svg> 新加坡 · 腾讯云轻量<a href="javascript:void(0)" onclick="go('servers')">切换</a></div>
+          <div class="connect-wrap">
+            <div class="power" id="powerBtn" onclick="toggleConn()"><svg viewBox="0 0 24 24" width="40%" height="40%" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3.2v8.6"/><path d="M6.3 6.6a8.2 8.2 0 1 0 11.4 0"/></svg></div>
+            <div class="conn-state" id="connState">未连接 · 当前为直连（国内访问正常）</div>
+            <div class="conn-tip" id="connTip">分流自动生效：国内直连，国外走代理</div>
+            <div class="stats">
+              <div class="stat" id="st1"><b>—</b><span>出口 IP</span></div>
+              <div class="stat" id="st2"><b>—</b><span>延迟</span></div>
+              <div class="stat locked" id="st3"><b>订阅解锁</b><span>今日流量</span></div>
             </div>
           </div>
-        </details>
+          <div class="trial-line" id="trialBar">
+            <svg class="i sm"><use href="#i-gift"/></svg>
+            <span>新用户可免费领 <b>3 天</b>全功能试用 · 到期后代理照常可用，不限速不中断</span>
+            <button class="btn sm" onclick="claimTrial()">免费领取</button>
+          </div>
+        </div>
+
+        <div class="quick">
+          <div class="q" onclick="go('network')"><div class="e"><svg class="i lg"><use href="#i-globe"/></svg></div><div><b>网络配置</b><span>添加 / 重新部署服务器</span></div></div>
+          <div class="q" onclick="go('servers')"><div class="e"><svg class="i lg"><use href="#i-server"/></svg></div><div><b>我的代理服务器</b><span>3 台 · 使用中：新加坡</span></div></div>
+          <div class="q" onclick="go('ai')"><div class="e"><svg class="i lg"><use href="#i-bot"/></svg></div><div><b>AI 工具</b><span>Codex / Claude 一键安装</span></div></div>
+          <div class="q" onclick="go('shop')"><div class="e"><svg class="i lg"><use href="#i-cart"/></svg></div><div><b>还没有服务器？</b><span>海外服务器 ¥99/年起</span></div></div>
+        </div>
       </div>
+
+      <!-- 网络配置 -->
+      <div class="page" id="page-network">
+        <div class="page-head"><h2>网络配置</h2>
+          <div class="sub">填一次服务器信息，自动装好代理服务（SSH 密码 / AccessKey 两种方式）；已有机器请到「代理服务器」管理</div></div>
+        <div class="flow-bar">
+          <span class="fs on">① 网络配置<i>当前</i></span>
+          <span class="arrow">›</span>
+          <span class="fs off">② 装 AI 工具</span>
+          <span class="fs-note">网络通了再装 AI：下载与登录都要走这条代理</span>
+          <button class="btn sm" onclick="go('ai')">去 AI 工具 ›</button>
+        </div>
+        <div class="card">
+          <h3>服务器接入方式</h3>
+          <div class="seg" id="segNet">
+            <div class="on" onclick="segNet(this,'ssh')">SSH 密码 / 密钥</div>
+            <div onclick="segNet(this,'ak')">AccessKey（自动开通）</div>
+          </div>
+          <div id="net-ssh">
+            <div class="form-grid">
+              <div class="field"><label>服务器 IP</label><input value="47.xx.xx.10（演示）"></div>
+              <div class="field"><label>SSH 端口</label><input value="22"></div>
+              <div class="field"><label>账号</label><input value="root"></div>
+              <div class="field"><label>密码 / 私钥</label><input type="password" value="********"></div>
+            </div>
+          </div>
+          <div id="net-ak" style="display:none">
+            <div class="form-grid">
+              <div class="field"><label>云厂商（一期）</label><select><option>腾讯云（轻量海外）</option><option disabled>阿里云（二期）</option></select></div>
+              <div class="field"><label>地域</label><select><option>新加坡</option><option>东京</option><option>硅谷</option></select></div>
+              <div class="field"><label>SecretId</label><input value="AKID****（演示）"></div>
+              <div class="field"><label>SecretKey</label><input type="password" value="********"></div>
+            </div>
+            <p style="font-size:12px;color:#6b7280;margin-top:10px">AccessKey 仅存本机，加密保存。可自动完成：购买引导 → 创建实例 → 放行安全组（消灭手动开 8443 这一步）。</p>
+          </div>
+          <div style="margin-top:16px"><button class="btn" onclick="startDeploy()">开始部署</button> <button class="btn ghost" onclick="openModal('dryModal')">--dry-run 先看计划</button></div>
+          <div class="mini-note" style="margin-top:9px">dry-run 只做只读探测，不装任何东西、不改服务器配置——先看清楚要动哪些东西，再决定是否正式部署。</div>
+          <div class="mini-note" style="margin-top:6px"><svg class="i sm" style="color:#0f766e"><use href="#i-chat"/></svg>第一次用云服务器？找不到 IP / 密码 / AccessKey？<a href="javascript:void(0)" onclick="openAssistant()" style="color:#0f766e;text-decoration:none">问左侧导航底部「小渡助手」 ›</a></div>
+        </div>
+        <div class="card">
+          <h3>部署流水线（演示）</h3>
+          <div class="steps">
+            <div class="step done"><div class="n">✓</div><div><b>连接服务器</b><br><span style="font-size:12px;color:#6b7280">SSH 登录成功 · TencentOS / Ubuntu 24.04</span></div></div>
+            <div class="step done"><div class="n">✓</div><div><b>配置服务端</b><br><span style="font-size:12px;color:#6b7280">gost 已安装 · BBR 已回读确认 · 安全组 8443 已放行（AccessKey 自动）</span></div></div>
+            <div class="step done"><div class="n">✓</div><div><b>配置本机</b><br><span style="font-size:12px;color:#6b7280">本地代理服务就绪（由 App 托管，不设开机自启）</span></div></div>
+            <div class="step run"><div class="n">4</div><div><b>出口验证</b><br><span style="font-size:12px;color:#6b7280">带凭据请求中… 期望返回服务器 IP</span></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 我的代理服务器（多服务器管理） -->
+      <div class="page" id="page-servers">
+        <div class="page-head"><h2>我的代理服务器</h2>
+          <div class="sub">多台服务器统一管理：每台独立保存配置，切换即换出口线路，互不干扰</div></div>
+
+        <div class="card" style="border-color:#99f6e4;background:linear-gradient(180deg,#f6fdfb,#fff)">
+          <div class="srv" style="border-bottom:none;padding-top:0">
+            <div class="flag" style="background:#0d9488;color:#fff">SG</div>
+            <div class="meta">
+              <b>新加坡 · 腾讯云轻量</b> <span class="pill on">使用中</span>
+              <div class="mline">47.xx.xx.10 · 2核2G · 东京/新加坡区 · 延迟 63ms · 今日 1.2GB / 1T</div>
+              <div class="mline">部署完成于 2026-11-10 · 最近体检 82 分（1 项可优化）</div>
+            </div>
+            <div class="ops">
+              <button class="btn sm ghost" onclick="go('doctor')">体检</button>
+              <button class="btn sm ghost" disabled title="使用中的服务器不可编辑：保存会立即重载代理配置、中断当前连接" style="color:#c3c9d2;background:#f8fafc;border-color:#eef0f3;cursor:not-allowed">编辑</button>
+              <button class="btn sm ghost" onclick="go('set')">备份</button>
+            </div>
+          </div>
+          <div class="mini-note" style="margin-top:10px"><svg class="i sm" style="color:#b45309"><use href="#i-lock"/></svg>使用中的服务器暂不支持编辑：保存会立即重载配置、中断当前连接。要改配置请先切到其它线路，或断开连接后再编辑。</div>
+        </div>
+
+        <div class="card">
+          <h3>其他服务器（2）</h3>
+          <div class="srv lockable">
+            <div class="flag">JP</div>
+            <div class="meta">
+              <b>东京 · Vultr</b> <span class="pill off">备用</span>
+              <div class="mline">139.xx.xx.22 · $6/月 · 延迟 38ms · 上次体检健康</div>
+            </div>
+            <div class="ops">
+              <button class="btn sm" onclick="switchTo('东京 · Vultr')">切到此线路</button>
+              <button class="btn sm ghost" onclick="serverCheck('东京 · Vultr')">服务器体检</button>
+              <button class="btn sm ghost" onclick="openEdit('东京 · Vultr','139.xx.xx.22','22','root','东京')">编辑</button>
+            </div>
+          </div>
+          <div class="srv lockable">
+            <div class="flag" style="background:#fef2f2;color:#b91c1c">US</div>
+            <div class="meta">
+              <b>洛杉矶 · 搬瓦工</b> <span class="pill err">SSH 超时</span>
+              <div class="mline">45.xx.xx.88 · CN2 GIA · 部署未完成（第 2 步失败）</div>
+            </div>
+            <div class="ops">
+              <button class="btn sm ghost" onclick="retryDeploy()">重试部署</button>
+              <button class="btn sm ghost" onclick="openEdit('洛杉矶 · 搬瓦工','45.xx.xx.88','22','root','洛杉矶')">编辑</button>
+              <button class="btn sm ghost" style="color:#b91c1c" onclick="toast('（演示）删除前会二次确认，并提醒该机器上的配置将一并移除')">删除</button>
+            </div>
+          </div>
+          <div class="srv">
+            <div class="flag" style="background:#f3f4f6;color:#6b7280">+</div>
+            <div class="meta">
+              <b>添加服务器</b>
+              <div class="mline">SSH 密码 / 密钥 / AccessKey 三种方式均可</div>
+            </div>
+            <div class="ops"><button class="btn sm" onclick="go('network')">去添加</button></div>
+          </div>
+          <div class="lock-note"><svg class="i sm" style="color:#b45309"><use href="#i-lock"/></svg><b>订阅权益说明</b>：试用/订阅期间服务器数量不限；到期后仅保留 1 台可切换，其余进入只读（配置不删除，续费即恢复）。免费版不提供「一键切换」与「批量体检」。<a href="javascript:void(0)" id="lockDemoLink" onclick="toggleExpireDemo()" style="margin-left:8px;color:#0f766e">▶ 演示到期锁定状态</a></div>
+        </div>
+
+        <div class="card">
+          <h3>批量操作（订阅功能）</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn sm ghost" onclick="runBatchCheck()">批量体检全部服务器</button>
+            <button class="btn sm ghost" onclick="openSync()">同步配置到全部服务器</button>
+            <button class="btn sm ghost" onclick="openModal('exportModal')">导出服务器清单</button>
+          </div>
+          <div style="font-size:12px;color:#6b7280;margin-top:10px">「同步配置」用于多机同密码场景：改一次密码，全线路同步，避免逐台手改。</div>
+        </div>
+      </div>
+
+      <!-- 健康诊断 -->
+      <div class="page" id="page-doctor">
+        <div class="page-head"><h2>健康诊断</h2>
+          <div class="sub">七层体检：环境 · 配置 · 服务 · 链路 · 鉴权 · 转发 · 性能。一层不通就指出问题并给出修复命令；免费版可诊断，订阅版可一键修复</div></div>
+        <div class="card" style="display:flex;align-items:center;gap:18px">
+          <div id="docScore" style="width:74px;height:74px;border-radius:50%;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;flex-shrink:0">82</div>
+          <div style="flex:1">
+            <b style="font-size:15px" id="docTitle">基本健康 · 1 项可优化</b>
+            <div style="font-size:13px;color:#6b7280;margin-top:5px" id="docDesc">环境、配置、服务、链路四层通过；性能层提示：拥塞算法非 bbr（跨国链路可能偏慢）</div>
+            <div style="font-size:12px;color:#6b7280;margin-top:7px" id="docMeta">上次体检：3 分钟前 · 7 层全部执行</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <button class="btn" id="fixBtn" onclick="fixAll()"><svg class="i sm"><use href="#i-bolt"/></svg>一键修复</button>
+            <button class="btn ghost sm" id="reBtn" onclick="runCheck()" style="margin-left:6px"><svg class="i sm"><use href="#i-search"/></svg>重新体检</button>
+            <div style="font-size:11px;color:#6b7280;margin-top:7px" id="docHint">订阅功能 · 免费版可复制命令自行执行</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>分层检查结果</h3>
+          <div class="step done"><div class="n">✓</div><div style="flex:1"><b>L1 环境</b> · Ubuntu 24.04 · 内核 6.8 · 依赖齐备</div><span style="font-size:12px;color:#10b981">通过</span></div>
+          <div class="step done"><div class="n">✓</div><div style="flex:1"><b>L2 配置</b> · /etc/dukou.conf 两端一致（端口 8443 · BBR 已开启）</div><span style="font-size:12px;color:#10b981">通过</span></div>
+          <div class="step done"><div class="n">✓</div><div style="flex:1"><b>L3 服务</b> · 服务端 gost 运行中（systemd active）</div><span style="font-size:12px;color:#10b981">通过</span></div>
+          <div class="step done"><div class="n">✓</div><div style="flex:1"><b>L4 链路</b> · 8443 TLS 可达（新加坡 · 63ms）</div><span style="font-size:12px;color:#10b981">通过</span></div>
+          <div class="step done"><div class="n">✓</div><div style="flex:1"><b>L5 鉴权</b> · 带凭据请求返回 200（密码两端一致）</div><span style="font-size:12px;color:#10b981">通过</span></div>
+          <div class="step done"><div class="n">✓</div><div style="flex:1"><b>L6 转发</b> · github.com / google 经代理可达（域名特异性正常）</div><span style="font-size:12px;color:#10b981">通过</span></div>
+          <div class="step" id="l7row"><div class="n" style="background:#fef3c7;color:#b45309">!</div><div style="flex:1"><b>L7 性能</b> · 丢包 1.2% · 吞吐 18.6 MB/s · 拥塞算法 cubic（建议 bbr）<div style="font-size:12px;color:#6b7280;margin-top:3px">修复命令：modprobe tcp_bbr &amp;&amp; sysctl -w net.ipv4.tcp_congestion_control=bbr（可复制自行执行）</div></div><span style="font-size:12px;color:#b45309">可优化</span></div>
+          <div class="step done"><div class="n">✓</div><div style="flex:1"><b>分流检查</b> · 国内直连正常（baidu 200）· PAC 生效</div><span style="font-size:12px;color:#10b981">通过</span></div>
+        </div>
+
+        <div class="card">
+          <h3>诊断日志（可导出）</h3>
+          <div style="font-family:ui-monospace,monospace;font-size:12px;color:#4b5563;background:#f8fafc;border:1px solid #eef0f3;border-radius:8px;padding:12px;line-height:1.9">
+            [L1] tcp 47.xx.xx.10:8443 ... open (63ms)<br>
+            [L2] curl -x proxy https://api.ipify.org ... 47.xx.xx.10<br>
+            [L3] curl -x proxy https://api.github.com ... 200<br>
+            [L5] sysctl net.ipv4.tcp_congestion_control ... cubic
+          </div>
+          <div style="margin-top:12px"><button class="btn ghost sm">导出诊断报告</button> <span style="font-size:12px;color:#6b7280">便于贴到社区求助时脱敏分享</span></div>
+        </div>
+      </div>
+
+      <!-- AI 工具 -->
+      <div class="page" id="page-ai">
+        <div class="page-head"><h2>AI 工具</h2>
+          <div class="sub">一键装好 Codex / Claude Code，自动检测你的系统环境与安装状态</div></div>
+        <div class="warn-bar" id="aiWarn"><svg class="i sm" style="color:#b45309"><use href="#i-alert"/></svg>当前未连接代理，下载安装与登录海外平台需要先回首页点「连接」</div>
+        <div class="card tool">
+          <div class="tool-icon" style="background:#111827">CX</div>
+          <div class="tool-info">
+            <h4>Codex <span class="tag">OpenAI</span><span class="tag" style="background:#ecfdf5;color:#047857">已安装 v0.1.4</span></h4>
+            <div class="tool-desc">OpenAI 官方终端编程助手：能读写项目文件、执行命令、跑测试。适合在服务器上改脚本、排查故障；复杂重构建议拆成小步交给它。</div>
+            <div class="env-line">已检测：Ubuntu 24.04 · x86_64 · Node v22.11 ✓ · Codex 已安装 ✓ · 代理已连接 ✓</div>
+          </div>
+          <div class="tool-side">
+            <div class="opt primary" onclick="openApp('Codex')">▶ 打开应用</div>
+            <div class="opt" onclick="openTutorial('Codex')"><svg class="i sm"><use href="#i-book"/></svg>操作教程</div>
+            <div class="tool-side-note">点开即进终端，无需重装</div>
+          </div>
+        </div>
+        <div class="card tool">
+          <div class="tool-icon" style="background:#d97706">CC</div>
+          <div class="tool-info">
+            <h4>Claude Code <span class="tag">Anthropic</span><span class="tag">CLI</span></h4>
+            <div class="tool-desc">Anthropic 官方终端助手，长上下文是强项：适合整文件重构、代码审查、读大段日志。用法与 Codex 接近，可两个都装按任务切换。</div>
+            <div class="env-line">已检测：<b style="color:#6b7280">未安装</b> · 环境满足 ✓ · 需要 Node ≥ 18</div>
+          </div>
+          <div class="tool-side">
+            <div class="opt primary" onclick="installTool('Claude Code')">CLI 版 · 一键安装</div>
+            <div class="opt" onclick="openTutorial('Claude Code')"><svg class="i sm"><use href="#i-book"/></svg>操作教程</div>
+            <div class="tool-side-note">与 Codex 可共存</div>
+          </div>
+        </div>
+        <div class="card tool">
+          <div class="tool-icon" style="background:#10a37f">GPT</div>
+          <div class="tool-info">
+            <h4>ChatGPT <span class="tag">桌面 App</span><span class="tag" style="background:#ecfdf5;color:#047857">已安装 v1.2.0</span></h4>
+            <div class="tool-desc">官方桌面客户端：支持语音对话、传文件、截图提问，不用命令行也能用。适合日常问答、写文档、看报错截图。</div>
+            <div class="env-line">已检测：Windows 11 · 桌面版 v1.2.0 已安装 ✓ · 登录需代理</div>
+          </div>
+          <div class="tool-side">
+            <div class="opt primary" onclick="openApp('ChatGPT 桌面版')">▶ 打开应用</div>
+            <div class="opt" onclick="openTutorial('ChatGPT')"><svg class="i sm"><use href="#i-book"/></svg>操作教程</div>
+            <div class="tool-side-note">桌面 App 由厂商分发，不代装</div>
+          </div>
+        </div>
+        <div class="card tool">
+          <div class="tool-icon" style="background:#4285f4">GM</div>
+          <div class="tool-info">
+            <h4>Gemini CLI <span class="tag">Google</span><span class="tag">即将支持</span></h4>
+            <div class="tool-desc">Google 官方终端助手：免费额度较大，适合轻量任务、批量翻译与学习。开源，可自行接入其它模型。</div>
+          </div>
+          <div class="tool-side">
+            <div class="opt disabled">敬请期待</div>
+            <div class="tool-side-note">已列入 v0.3 计划</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 服务器推荐 -->
+      <div class="page" id="page-shop">
+        <div class="page-head"><h2>服务器购买</h2>
+          <div class="sub">价格为 2026-11-14 核对，均与厂商官网一致 · 点「去购买」跳官网下单，dukou 不经手支付</div></div>
+        <div class="mini-note" style="margin:-8px 0 14px"><svg class="i sm" style="color:#0f766e"><use href="#i-bot"/></svg>不知道选哪个？<a href="javascript:void(0)" onclick="openAssistant()" style="color:#0f766e;text-decoration:none">让小渡助手按预算帮你挑 ›</a></div>
+        <div class="shop-grid">
+          <div class="shop rec-card">
+            <div class="shop-top"><span class="rec">首推</span><span class="ad-tag">广告</span></div>
+            <h4>腾讯云 · 轻量海外</h4>
+            <div class="price">¥99<small> /年</small></div>
+            <div class="price-sub">新客活动价 · ≈8.25 元/月</div>
+            <ul><li>2核2G · 30M · 1T 月流量</li><li>东京 / 新加坡 / 硅谷 / 首尔任选</li><li>微信扫码注册，人民币支付</li><li>支持 AccessKey 一键自动开通</li></ul>
+            <button class="btn">去购买</button>
+            <div class="disclosure">价格与官网一致 · 以官网实时价为准</div>
+          </div>
+          <div class="shop">
+            <div class="shop-top"><span class="ad-tag">广告</span></div>
+            <h4>阿里云 · 轻量海外</h4>
+            <div class="price">¥24<small> /月起</small></div>
+            <div class="price-sub">国际型全量 200M 峰值 ¥28 起</div>
+            <ul><li>2核1G · 30M · 1T 月流量 · 新加坡</li><li>CN2 线路口碑好，晚高峰更稳</li><li>支付宝支付，控制台中文</li></ul>
+            <button class="btn ghost">去购买</button>
+            <div class="disclosure">价格与官网一致 · 以官网实时价为准</div>
+          </div>
+          <div class="shop">
+            <div class="shop-top"><span class="ad-tag">广告</span></div>
+            <h4>Vultr · 海外站</h4>
+            <div class="price">$100<small> 试用金</small></div>
+            <div class="price-sub">新用户 30 天有效 · $5/月起</div>
+            <ul><li>33 个机房全球同价，按小时计费</li><li>随时删除，不扣押金</li><li>支持支付宝，英文界面</li></ul>
+            <button class="btn ghost">注册领试用金</button>
+            <div class="disclosure">试用金额度以官方当前活动为准</div>
+          </div>
+          <div class="shop">
+            <div class="shop-top"><span class="ad-tag">广告</span></div>
+            <h4>搬瓦工 · 进阶线路</h4>
+            <div class="price">$49.99<small> /年起</small></div>
+            <div class="price-sub">CN2 GIA 优化线路</div>
+            <ul><li>高峰期更稳，适合长期挂机</li><li>邮箱注册，支持支付宝</li><li>仅提供购买链接，不支持自动开通</li></ul>
+            <button class="btn ghost">去购买</button>
+            <div class="disclosure">价格与官网一致 · 以官网实时价为准</div>
+          </div>
+        </div>
+        <div class="promo-note">推广说明：本页含推广链接，通过本页链接购买或注册，dukou 可能获得云厂商的推广佣金；这不影响你的购买价格，也不构成对任何厂商的推荐承诺。价格与活动均以厂商官网实时信息为准。</div>
+      </div>
+
+      <!-- 增值服务 -->
+      <div class="page" id="page-svc">
+        <div class="page-head"><h2 style="display:flex;align-items:center">增值服务
+          <a href="javascript:void(0)" onclick="ext('https://dukou.dev/account/orders','订单管理','课程包、陪跑等服务订单的支付状态、发票与退款都在官网用户中心处理。<br>客户端只负责展示与入口跳转，不存订单凭证。')"
+             style="margin-left:auto;font-size:13px;font-weight:400;color:#0f766e;text-decoration:none">订单管理 ›</a>
+        </h2>
+          <div class="sub">AI 课程包与 1 对 1 注册陪跑，均为人工交付 · 订单、发票与退款在官网用户中心办理</div></div>
+        <div class="held-bar" id="heldBar">
+          <b><svg class="i sm"><use href="#i-ticket"/></svg> 我持有的服务</b>
+          <span class="held-pill">注册陪跑 · 待服务 <b>1</b> 次</span>
+          <span class="held-pill ok">AI 课程包 · 已开通</span>
+          <a href="javascript:void(0)" onclick="openModal('heldModal')">查看 / 预约 ›</a>
+        </div>
+        <div class="svc-grid">
+          <div class="svc">
+            <h4><svg class="i sm"><use href="#i-book"/></svg> AI 出海课程包</h4>
+            <p>从服务器选购、dukou 部署、海外平台注册全流程，到 Codex/Claude 高效用法。含持续更新。</p>
+            <div class="p">¥19.9 <small style="font-size:12px;color:#6b7280">自助图文+视频</small></div>
+            <button class="btn">查看大纲</button>
+          </div>
+          <div class="svc">
+            <h4><svg class="i sm"><use href="#i-compass"/></svg> 注册陪跑服务（1 对 1）</h4>
+            <p>人工远程指导你用自己的信息完成 ChatGPT / Claude 注册，30 分钟包过，不过全额退。账号归你，安全无后患。</p>
+            <div class="p">¥39 <small style="font-size:12px;color:#6b7280">/次 · 人工服务</small></div>
+            <button class="btn">预约陪跑</button>
+          </div>
+          <div class="svc soon">
+            <h4><svg class="i sm"><use href="#i-card"/></svg> 大模型代充值（二期）</h4>
+            <p>官方礼品卡路径，商品页明示「官方政策变动可能失败，失败全额退」。调研中，敬请期待。</p>
+            <div class="p">待定</div>
+            <button class="btn ghost" disabled>即将上线</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 我的 -->
+      <div class="page" id="page-me">
+        <div class="page-head"><h2>我的</h2>
+          <div class="sub">订阅、等级与推广收益都在这里 · 支付、订单与提现请到官网用户中心</div></div>
+        <div class="card me-head">
+          <div class="avatar">D</div>
+          <div style="flex:1">
+            <b>demo@dukou.dev</b> <span class="tag">邮箱登录</span>
+            <div style="font-size:13px;color:#6b7280;margin-top:4px">Lv2 舵手 · 有效在线 96h / 100h
+              <a href="javascript:void(0)" onclick="openModal('levelModal')" style="color:#0f766e;text-decoration:none;margin-left:8px">等级说明 ›</a>
+            </div>
+            <div class="level-bar"><i></i></div>
+            <div style="font-size:12px;color:#6b7280">再在线 4 小时或成交 1 单升 Lv3（返佣 25%）</div>
+          </div>
+          <button class="btn ghost sm">退出登录</button>
+        </div>
+        <div class="card">
+          <h3 style="display:flex;align-items:center">我的订阅
+            <a href="javascript:void(0)" onclick="ext('https://dukou.dev/account/orders','订单记录','完整订单、发票与退款申请都在官网用户中心。<br>桌面版不保存订单与支付凭证，点击后请在浏览器里查看。')"
+               style="margin-left:auto;font-size:12px;font-weight:400;color:#0f766e;text-decoration:none">查看订单 ›</a>
+          </h3>
+          <table>
+            <tr><th>套餐</th><th>状态</th><th>到期日</th><th style="text-align:right">操作</th></tr>
+            <tr><td>免费试用（3 天）</td><td id="trialSt" style="color:#6b7280">未领取</td><td id="trialExp">—</td>
+              <td id="trialOp" style="text-align:right"><button class="btn sm" onclick="claimTrial()"><svg class="i sm"><use href="#i-gift"/></svg>免费领取 3 天</button></td></tr>
+          </table>
+          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+            <div class="radio-card"><b>周卡 ¥9</b><span>应急用</span></div>
+            <div class="radio-card on"><b>月卡 ¥19</b><span>最受欢迎</span></div>
+            <div class="radio-card"><b>季卡 ¥45</b><span>≈¥15/月</span></div>
+            <div class="radio-card"><b>年卡 ¥99</b><span>≈¥8.25/月 最划算</span></div>
+          </div>
+          <div style="border-top:1px dashed #eef0f3;margin-top:16px;padding-top:14px">
+            <div style="font-size:13px;color:#6b7280;margin-bottom:8px">订阅解锁（代理本身永不受影响）</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px 14px;font-size:13px;color:#374151">
+              <div><svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>仪表盘（延迟 / 流量 / IP 健康）</div>
+              <div><svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>多服务器管理与一键切换</div>
+              <div><svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>配置备份与跨机迁移</div>
+              <div><svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>健康诊断一键自动修复</div>
+              <div><svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>AI 工具页与健康提醒</div>
+              <div><svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>优先更新通道</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>推广大使</h3>
+          <div class="promo-link">
+            <input value="https://dukou.dev/r/DEMO88（演示链接）" readonly>
+            <button class="btn sm">复制链接</button>
+          </div>
+          <table style="margin-top:14px">
+            <tr><th>本月点击</th><th>注册</th><th>成交</th><th>待结算收益</th></tr>
+            <tr><td>128</td><td>11</td><td>3</td><td style="color:#10b981;font-weight:600">¥44.55</td></tr>
+          </table>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:14px;border-top:1px dashed #eef0f3">
+            <div>
+              <div style="font-size:12px;color:#6b7280">可提现余额</div>
+              <b style="font-size:19px;color:#10b981">¥44.55</b>
+              <span style="font-size:12px;color:#6b7280;margin-left:6px">满 ¥50 可提 · 还差 ¥5.45</span>
+            </div>
+            <div style="margin-left:auto;display:flex;gap:8px">
+              <button class="btn sm ghost" onclick="ext('https://dukou.dev/account/promo','推广收益明细','按月对账：谁通过你的链接注册、谁下了单、返佣多少，逐笔可查。<br>收益明细与提现同在官网用户中心，客户端只展示汇总数字。')">收益明细</button>
+              <button class="btn sm" onclick="withdraw()">去用户中心提现</button>
+            </div>
+          </div>
+          <div style="font-size:12px;color:#6b7280;margin-top:10px">一级返佣 · 每月 1 号结算上月收益 · 不做二级分销（支付资质就绪前可抵扣订阅）</div>
+        </div>
+      </div>
+
+      <!-- 设置 -->
+      <div class="page" id="page-set">
+        <div class="page-head"><h2>设置</h2>
+          <div class="sub">代理生命周期、备份迁移、版本更新与高级选项</div></div>
+        <div class="card">
+          <h3>代理模式</h3>
+          <div class="radio-row">
+            <div class="radio-card on"><b>手动连接（默认）</b><span>开机后打开 App 点「连接」，掌控感最强</span></div>
+            <div class="radio-card"><b>自动连接</b><span>App 启动后立即连接，省心</span></div>
+          </div>
+          <div class="set-row"><div>开机自启 dukou<div class="set-row-sub">自启到托盘，不会自动连接（除非开启上方自动连接）</div></div><div class="switch on" onclick="this.classList.toggle('on')"></div></div>
+          <div class="set-row"><div>退出 App 时断开代理<div class="set-row-sub">断开后自动清理系统代理与环境变量，还原干净直连</div></div><div class="switch on" onclick="this.classList.toggle('on')"></div></div>
+          <div class="set-row"><div>国内分流（PAC + 本地 bypass）<div class="set-row-sub">国内站点直连不走代理，浏览器与终端双生效</div></div><div class="switch on" onclick="this.classList.toggle('on')"></div></div>
+        </div>
+        <div class="card">
+          <h3>备份与迁移 <span class="tag" style="margin-left:6px">订阅功能</span></h3>
+          <div class="backup-item">
+            <div class="bi-ico"><svg class="i"><use href="#i-archive"/></svg></div>
+            <div class="bi-main">
+              <b>一键备份</b>
+              <div>把全部服务器配置、订阅信息、偏好设置打包为一个加密文件（.dukoubak），导出到你选择的目录</div>
+            </div>
+            <button class="btn sm">立即备份</button>
+          </div>
+          <div class="backup-item">
+            <div class="bi-ico"><svg class="i"><use href="#i-download"/></svg></div>
+            <div class="bi-main">
+              <b>从备份恢复</b>
+              <div>选择本地备份文件导入。恢复前会先自动备份当前配置，可回滚</div>
+            </div>
+            <button class="btn sm ghost">选择文件</button>
+          </div>
+          <div class="backup-item">
+            <div class="bi-ico"><svg class="i"><use href="#i-link"/></svg></div>
+            <div class="bi-main">
+              <b>迁移到新电脑</b>
+              <div>生成 6 位迁移码（15 分钟有效），在新电脑输入即可拉取配置——适合换机、公司/家里两台电脑</div>
+            </div>
+            <button class="btn sm ghost">生成迁移码</button>
+          </div>
+          <div class="backup-item">
+            <div class="bi-ico"><svg class="i"><use href="#i-clock"/></svg></div>
+            <div class="bi-main">
+              <b>自动备份</b>
+              <div>每周自动备份一次，保留最近 5 份，固定存在本机（不上传云端）</div>
+            </div>
+            <div class="switch on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="lock-note" style="margin-top:6px"><svg class="i sm" style="color:#b45309"><use href="#i-lock"/></svg><b>安全说明</b>：备份文件用你设置的独立密码加密（不与登录密码相同），SSH 私钥与密码在包内加密存储；迁移码通过云端中转，仅传输加密包，15 分钟后失效。<br><svg class="i sm"><use href="#i-archive"/></svg><b>备份内容</b>：服务器清单与配置 / 代理参数 / 订阅与等级 / UI 偏好。不含诊断日志、浏览记录。</div>
+        </div>
+        <div class="card">
+          <h3>高级</h3>
+          <div class="set-row"><div>本地代理端口</div><input style="width:110px;border:1px solid #d1d5db;border-radius:8px;padding:6px 10px" value="7890"></div>
+          <div class="set-row"><div>异常自检<div class="set-row-sub">开机时检测「已配置但服务未运行」，自动重连或还原（断电兜底）</div></div><div class="switch on"></div></div>
+          <div class="set-row"><div>新手引导</div><span style="font-size:13px;color:#6b7280">首次启动已展示 · <a href="javascript:void(0)" onclick="obGo(1);openModal('obModal')" style="color:#0f766e;text-decoration:none">重新查看</a></span></div>
+          <div class="set-row"><div>开源与合规</div><span style="font-size:13px;color:#6b7280">MIT 许可证 · <a href="javascript:void(0)" style="color:#0f766e;text-decoration:none">GitHub 仓库</a> · <a href="javascript:void(0)" style="color:#0f766e;text-decoration:none">隐私政策</a> · <a href="javascript:void(0)" style="color:#0f766e;text-decoration:none">用户协议</a></span></div>
+        </div>
+
+        <div class="card">
+          <h3>版本与更新</h3>
+          <div style="display:flex;align-items:flex-start;gap:14px">
+            <div style="width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,#0d9488,#0891b2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">渡</div>
+            <div style="flex:1">
+              <b style="font-size:15px">dukou 桌面版</b> <span class="pill on" id="verPill" style="margin-left:6px">已是最新</span>
+              <div style="margin-top:8px">
+                <div class="ver-row"><span class="k">当前版本</span><span class="v">v0.2.0 (build 2026.11.14)</span></div>
+                <div class="ver-row"><span class="k">内核 CLI</span><span class="v">v0.2.0 · 与桌面版同 tag 发版</span></div>
+                <div class="ver-row"><span class="k">运行环境</span><span class="v">Windows 11 · x64 · WebView2</span></div>
+              </div>
+            </div>
+            <button class="btn sm" id="chkBtn" onclick="checkUpdate()">检查更新</button>
+          </div>
+
+          <div class="upd-state" id="updState">
+            <span style="display:flex;color:#10b981"><svg class="i lg"><use href="#i-check"/></svg></span>
+            <div style="flex:1;font-size:13px">已是最新版本
+              <div style="font-size:12px;color:#6b7280;margin-top:3px">上次检查：今天 15:40 · 启动时 + 每 24 小时自动检查</div>
+            </div>
+          </div>
+          <div class="prog" id="updProg"><i id="updBar"></i></div>
+
+          <div class="set-row" style="margin-top:10px"><div>更新通道<div class="set-row-sub">稳定版经完整验证，所有人可用；抢先版提前体验新功能（订阅权益）</div></div>
+            <div class="seg" style="margin:0" id="segCh"><div class="on" onclick="setChannel(this,'稳定版')">稳定版</div><div onclick="setChannel(this,'抢先版')">抢先版 <svg class="i sm"><use href="#i-lock"/></svg></div></div>
+          </div>
+          <div class="set-row"><div>自动检查更新<div class="set-row-sub">发现新版本时托盘气泡提示，不自动下载、不静默安装</div></div><div class="switch on" onclick="this.classList.toggle('on')"></div></div>
+          <div class="set-row"><div>下载源<div class="set-row-sub">国内直连 GitHub 慢时自动切换镜像，sha256 一致才放行</div></div>
+            <select onchange="toast('下载源已切换：'+this.value+'（下次检查更新生效）')" style="border:1px solid #d1d5db;border-radius:8px;padding:6px 10px;font-size:13px"><option>自动（GitHub → 镜像）</option><option>仅 GitHub Releases</option><option>仅国内镜像</option></select>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn ghost sm" onclick="openModal('logModal')">查看更新日志</button>
+            <button class="btn ghost sm" onclick="verifySha()">校验安装包 sha256</button>
+            <button class="btn ghost sm" onclick="redownload()">重新下载完整安装包</button>
+          </div>
+          <div class="ignored-line" id="ignoredLine">已忽略版本 <b>v0.2.1</b>（下个版本发布时会再次提醒）· <a href="javascript:void(0)" onclick="restoreNotice()">恢复提醒</a></div>
+          <div style="font-size:12px;color:#6b7280;margin-top:10px;line-height:1.7">更新方式：下载对应平台安装包（Windows msi / macOS dmg / Linux deb · AppImage）覆盖安装，配置与登录态保留。安装包必须与 GitHub Release 公示的 sha256 一致才允许安装；更新失败可回退到上一版本安装包。</div>
+        </div>
+      </div>
+
     </div>
 
-    <div class="actions" style="margin-top:18px;">
-      <button id="go">开始部署</button>
-      <button id="retry" class="ghost" style="display:none;">重新执行</button>
-      <span class="status-line" id="status"></span>
-    </div>
-  </div>
-
-  <div class="card steps" id="steps">
-    <div class="step" data-step="connect">
-      <div class="dot"></div>
-      <div class="step-body">
-        <div class="step-name">1 · 测试连接</div>
-        <div class="step-msg">等待开始</div>
+    <!-- 小渡助手：右侧抽屉（软件内展开，不遮挡导航） -->
+    <div class="ai-panel" id="aiPanel">
+      <div class="ai-head" style="display:flex;align-items:flex-start">
+        <div><b><svg class="i sm"><use href="#i-bot"/></svg> 小渡助手</b><span>新手向导 · 未连接代理也能用（国内线路）</span></div>
+        <span class="ai-close" onclick="closeAssistant()" role="button" aria-label="关闭助手"><svg class="i sm"><use href="#i-x"/></svg></span>
       </div>
-    </div>
-    <div class="step" data-step="server">
-      <div class="dot"></div>
-      <div class="step-body">
-        <div class="step-name">2 · 配置服务器</div>
-        <div class="step-msg">等待开始</div>
+      <div class="ai-msgs" id="aiMsgs">
+        <div class="ai-msg bot">你好，我是小渡，第一次用云服务器也没关系，我可以带你一步步完成。最常问的几个问题在下面，点一下就有答案；也可以直接打字问我。</div>
       </div>
-    </div>
-    <div class="step" data-step="client">
-      <div class="dot"></div>
-      <div class="step-body">
-        <div class="step-name">3 · 配置本机代理</div>
-        <div class="step-msg">等待开始</div>
+      <div class="ai-chips">
+        <span onclick="askAI('ssh')">SSH 密码在哪里找？</span>
+        <span onclick="askAI('ak')">AccessKey 是什么？</span>
+        <span onclick="askAI('buy')">第一次买服务器怎么选？</span>
+        <span onclick="askAI('guide')">带我去完成网络配置</span>
       </div>
-    </div>
-    <div class="step" data-step="codex">
-      <div class="dot"></div>
-      <div class="step-body">
-        <div class="step-name">4 · 安装 Codex</div>
-        <div class="step-msg">等待开始</div>
+      <div class="ai-input">
+        <input id="aiInput" placeholder="输入你的问题…" onkeydown="if(event.key==='Enter')askAI('free')">
+        <button onclick="askAI('free')">发送</button>
       </div>
-    </div>
-  </div>
-
-  <div class="card logbox" id="logbox">
-    <div class="log" id="log"></div>
-  </div>
-
-  <div class="card result" id="result">
-    <h1 style="font-size:15px;margin:0 0 8px;">部署完成</h1>
-    <dl class="kv">
-      <dt>服务器</dt><dd id="rAddr">-</dd>
-      <dt>用户名</dt><dd id="rUser">-</dd>
-      <dt>密码</dt><dd id="rPass">-</dd>
-      <dt>出口 IP</dt><dd id="rIp">-</dd>
-    </dl>
-    <div class="next">
-      <strong>下一步</strong><br />
-      1. 新开一个终端，执行 <code>codex</code>。第一次会弹浏览器让你登录 OpenAI —— 这一步必须你本人在场点授权，程序替不了。<br />
-      2. Firefox 里选「使用系统代理设置」，国内网站会自动直连。<br />
-      3. 终端里的代理变量已写入 <code>~/.bashrc</code>，新开终端即生效。
     </div>
   </div>
 </div>
 
+<!-- 新手引导（首次启动自动弹出；设置页可重看） -->
+<div class="modal-mask show" id="obModal">
+  <div class="modal" style="width:520px">
+    <!-- 第 1 步：欢迎 + 路径分叉 -->
+    <div class="ob-pane on" id="ob1">
+      <div class="modal-head">欢迎使用 dukou 渡口</div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:#374151;line-height:1.9">把你国内的电脑，一键接入海外大模型。总共三步：<b>网络配置 → 点「连接」→ 装 AI 工具</b>，跟着引导走一遍就会了。</p>
+        <p style="font-size:13px;color:#6b7280;margin-top:14px">先确认一件事：</p>
+        <div class="ob-path">
+          <div class="p" onclick="obGo(3)"><div class="e"><svg class="i xl"><use href="#i-server"/></svg></div><b>我有服务器</b><span>已有海外 VPS / 轻量云，直接去部署</span></div>
+          <div class="p" onclick="obGo(2)"><div class="e"><svg class="i xl"><use href="#i-cart"/></svg></div><b>我还没有服务器</b><span>带你挑一台高性价比的，¥99/年起</span></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <div class="ob-dots"><i class="on"></i><i></i><i></i></div>
+        <button class="btn ghost sm" onclick="obSkip()">跳过引导</button>
+      </div>
+    </div>
+    <!-- 第 2 步（无服务器路径）：先买一台 -->
+    <div class="ob-pane" id="ob2">
+      <div class="modal-head">第一步：挑一台海外服务器</div>
+      <div class="modal-body">
+        <ul class="ob-list">
+          <li><span class="n">1</span>打开「服务器购买」页，按预算选一家——新手首推 <b>腾讯云轻量 ¥99/年</b>，国内厂商出海节点，网络配置时可用 AccessKey 自动开通</li>
+          <li><span class="n">2</span>在厂商官网完成购买（客户端会唤起系统浏览器， dukou 不经手付款）</li>
+          <li><span class="n">3</span>拿到 <b>IP、root 密码</b>后回来，走「我有服务器」路径继续</li>
+        </ul>
+      </div>
+      <div class="modal-foot">
+        <div class="ob-dots"><i></i><i class="on"></i><i></i></div>
+        <button class="btn ghost sm" onclick="obGo(1)">‹ 返回</button>
+        <button class="btn sm" onclick="obJump('shop','买完服务器后，回到这里继续：网络配置 → 连接 → 装 AI 工具')">去看看服务器 ›</button>
+      </div>
+    </div>
+    <!-- 第 3 步（有服务器路径）：网络配置部署 -->
+    <div class="ob-pane" id="ob3">
+      <div class="modal-head">第一步：网络配置（约 3 分钟）</div>
+      <div class="modal-body">
+        <ul class="ob-list">
+          <li><span class="n">1</span>打开「网络配置」页，填 <b>SSH 密码 / 密钥</b>；腾讯云用户可改用 <b>AccessKey</b>（自动创建实例、放行端口）</li>
+          <li><span class="n">2</span>拿不准就先点「<b>--dry-run 先看计划</b>」——只读探测，看清会动哪些东西再正式部署</li>
+          <li><span class="n">3</span>四步流水线跑完（连接服务器 → 配置服务端 → 配置本机 → 出口验证）即部署成功</li>
+        </ul>
+        <p style="font-size:12px;color:#6b7280;margin-top:10px"><svg class="i sm"><use href="#i-chat"/></svg>卡在任何一步（比如不知道密码在哪找），左侧导航底部「小渡助手」随时问，未连接代理也能用。</p>
+      </div>
+      <div class="modal-foot">
+        <div class="ob-dots"><i></i><i class="on"></i><i></i></div>
+        <button class="btn ghost sm" onclick="obGo(1)">‹ 返回</button>
+        <button class="btn ghost sm" onclick="obGo(4)">已部署完成</button>
+        <button class="btn sm" onclick="obJump('network','部署完成后回首页点「连接」，或随时重看引导')">去网络配置 ›</button>
+      </div>
+    </div>
+    <!-- 第 4 步：连接与收尾 -->
+    <div class="ob-pane" id="ob4">
+      <div class="modal-head">最后一步：连接并验证</div>
+      <div class="modal-body">
+        <ul class="ob-list">
+          <li><span class="n">1</span>回首页点中间的大圆环「<b>连接</b>」——写入系统代理，国内直连、国外自动走代理</li>
+          <li><span class="n">2</span>「出口 IP」变成服务器所在地，就是成功了</li>
+          <li><span class="n">3</span>之后去「<b>AI 工具</b>」一键装 Codex / Claude；别忘了在首页领 <b>3 天免费试用</b></li>
+        </ul>
+      </div>
+      <div class="modal-foot">
+        <div class="ob-dots"><i></i><i></i><i class="on"></i></div>
+        <button class="btn ghost sm" onclick="obFinish()">完成，自己逛逛</button>
+        <button class="btn sm" onclick="obJump('home','点中间的大圆环「连接」就通了')">去首页连接 ›</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 更新详情弹窗 -->
+<div class="modal-mask" id="updModal">
+  <div class="modal">
+    <div class="modal-head">发现新版本 v0.2.1 <span class="pill off" style="font-weight:400">稳定版</span></div>
+    <div class="modal-body">
+      <div class="ver-row"><span class="k">当前版本</span><span class="v">v0.2.0</span></div>
+      <div class="ver-row"><span class="k">最新版本</span><span class="v" style="color:#ef4444">v0.2.1（2026-11-20 发布）</span></div>
+      <h4>更新内容</h4>
+      <ul>
+        <li>多服务器批量体检，一次检查全部线路</li>
+        <li>备份迁移提速，大配置恢复快 3 倍</li>
+        <li>修复 Windows 托盘图标偶发不显示</li>
+        <li>修复断电后环境变量残留导致的断网</li>
+      </ul>
+      <div class="modal-note">安装包 28 MB · 覆盖安装，服务器配置与登录态保留 · 下载后自动校验 sha256<br>本次为可选更新，不影响当前版本正常使用</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="skipUpdate()">跳过此版本</button>
+      <button class="btn ghost" onclick="closeUpdate()">稍后提醒</button>
+      <button class="btn" onclick="updateNow()">立即更新</button>
+    </div>
+  </div>
+</div>
+
+<!-- dry-run 计划预览 -->
+<div class="modal-mask" id="dryModal">
+  <div class="modal wide">
+    <div class="modal-head">部署计划预览（dry-run）</div>
+    <div class="modal-body">
+      <div class="mini-note" style="margin-bottom:12px">只做只读探测：登录服务器、读系统信息、查端口与权限。<b style="color:#111827">不装软件、不写配置、不重启服务。</b></div>
+      <h4>探测结果</h4>
+      <div class="m-list">
+        <div class="m-item"><span class="nm">SSH 22 端口可达 · 登录成功（root，sudo 可用）</span><span class="st ok">通过</span></div>
+        <div class="m-item"><span class="nm">系统 Ubuntu 24.04 LTS · x86_64 · 磁盘可用 19 GB</span><span class="st ok">通过</span></div>
+        <div class="m-item"><span class="nm">8443 端口空闲 · 现有防火墙规则 3 条</span><span class="st ok">通过</span></div>
+        <div class="m-item"><span class="nm">内核支持 tcp_bbr（可开启加速）</span><span class="st ok">通过</span></div>
+      </div>
+      <h4>正式部署将执行（预计 40~60 秒）</h4>
+      <table class="m-table">
+        <tr><th style="width:44px">序号</th><th>动作</th><th>写入位置</th></tr>
+        <tr><td>1</td><td>安装 gost 服务端</td><td>/usr/local/bin/gost</td></tr>
+        <tr><td>2</td><td>注册并启动系统服务</td><td>dukou-server.service</td></tr>
+        <tr><td>3</td><td>开启 BBR 拥塞控制</td><td>/etc/sysctl.d/99-dukou.conf</td></tr>
+        <tr><td>4</td><td>放行安全组 8443/TCP</td><td>云厂商安全组（需 AccessKey；纯 SSH 会提示手动放行）</td></tr>
+        <tr><td>5</td><td>本机写入代理与分流配置</td><td>~/.dukou/config.json</td></tr>
+      </table>
+      <div class="modal-note"><b>不会做的事</b>：不改 SSH 端口、不装 Docker、不动已有 nginx、不重启服务器。若发行版不受支持，第 1 步就中止，不留残留。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost sm" onclick="closeModal('dryModal')">关闭</button>
+      <button class="btn sm" onclick="closeModal('dryModal');startDeploy()">开始正式部署</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑服务器 -->
+<div class="modal-mask" id="editModal">
+  <div class="modal">
+    <div class="modal-head">编辑服务器</div>
+    <div class="modal-body">
+      <div class="m-form">
+        <div class="field full"><label>备注名</label><input id="edName"></div>
+        <div class="field full"><label>服务器 IP / 域名</label><input id="edIp"></div>
+        <div class="field"><label>SSH 端口</label><input id="edPort"></div>
+        <div class="field"><label>账号</label><input id="edUser"></div>
+        <div class="field full"><label>密码 / 私钥</label><input type="password" value="********" id="edPass"></div>
+        <div class="field full"><label>标签</label><select id="edTag"><option>使用中</option><option>备用</option><option>停用</option></select></div>
+      </div>
+      <div class="modal-note">点「保存并应用」才写入本机配置并重新连接；<b>不会重启远端服务</b>，也不影响正在使用的其他服务器。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost sm" onclick="closeModal('editModal')">取消</button>
+      <button class="btn sm" onclick="saveEdit()">保存并应用</button>
+    </div>
+  </div>
+</div>
+
+<!-- 批量体检 -->
+<div class="modal-mask" id="batchModal">
+  <div class="modal">
+    <div class="modal-head">批量体检 · 3 台服务器</div>
+    <div class="modal-body">
+      <div class="m-list" id="batchList"></div>
+      <div class="modal-note" id="batchNote">正在逐台执行七层诊断…</div>
+    </div>
+    <div class="modal-foot"><button class="btn sm ghost" onclick="closeModal('batchModal')">关闭</button></div>
+  </div>
+</div>
+
+<!-- 同步配置 -->
+<div class="modal-mask" id="syncModal">
+  <div class="modal">
+    <div class="modal-head">同步配置到全部服务器</div>
+    <div class="modal-body" id="syncBody"></div>
+    <div class="modal-foot" id="syncFoot"></div>
+  </div>
+</div>
+
+<!-- 导出清单 -->
+<div class="modal-mask" id="exportModal">
+  <div class="modal">
+    <div class="modal-head">导出服务器清单</div>
+    <div class="modal-body">
+      <div class="m-form" style="grid-template-columns:1fr">
+        <div class="field"><label>导出格式</label>
+          <select id="expFmt">
+            <option>CSV（表格 · 不含密码）</option>
+            <option>JSON（完整配置 · 密码脱敏）</option>
+            <option>加密包 .dukoubak（可再导入）</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-note">导出：备注名、IP、端口、账号、地域、标签、备注。<b>密码与私钥只在「加密包」里</b>，CSV / JSON 一律脱敏成 ****，方便贴工单或放进表格。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost sm" onclick="closeModal('exportModal')">取消</button>
+      <button class="btn sm" onclick="doExport()">导出</button>
+    </div>
+  </div>
+</div>
+
+<!-- 等级说明 -->
+<div class="modal-mask" id="levelModal">
+  <div class="modal wide">
+    <div class="modal-head">等级与返佣说明</div>
+    <div class="modal-body">
+      <table class="m-table">
+        <tr><th>等级</th><th>升级条件（满足其一）</th><th style="width:60px">返佣</th></tr>
+        <tr><td><b>Lv1 船夫</b></td><td>注册即是</td><td>15%</td></tr>
+        <tr><td><b>Lv2 舵手</b></td><td>有效在线满 100 小时，或累计成交 3 单</td><td>20%</td></tr>
+        <tr><td><b>Lv3 船长</b></td><td>有效在线满 300 小时，或累计成交 10 单</td><td>25%</td></tr>
+        <tr><td><b>Lv4 摆渡人</b></td><td>有效在线满 800 小时，或累计成交 30 单</td><td>30%</td></tr>
+      </table>
+      <div class="modal-note">
+        <b>有效在线</b>：App 打开且代理处于「已连接」才计时，每天最多计 10 小时（后台挂着进程不算）。<br>
+        <b>双轨升级</b>：在线时长与推广业绩取较高的一档，两条路都能升级。<br>
+        <b>返佣规则</b>：只做一级（好友直接下单返你），不做二级；按月结算，满 ¥50 可提现；支付资质就绪前可抵扣订阅。
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn sm" onclick="closeModal('levelModal')">知道了</button></div>
+  </div>
+</div>
+
+<!-- AI 工具操作教程（导流课程包） -->
+<div class="modal-mask" id="tutModal">
+  <div class="modal">
+    <div class="modal-head" id="tutTitle">上手指南</div>
+    <div class="modal-body">
+      <div style="font-size:13px;color:#374151;line-height:1.9">三步把工具用起来（新手基本都卡在前两步）：</div>
+      <div class="m-list" style="margin-top:10px">
+        <div class="m-item"><b style="width:18px;color:#0f766e">1</b><div class="nm">先确认网络连上了<div style="font-size:12px;color:#6b7280;margin-top:2px">回首页点「连接」，出口 IP 正常再往下走</div></div></div>
+        <div class="m-item"><b style="width:18px;color:#0f766e">2</b><div class="nm">登录海外账号<div style="font-size:12px;color:#6b7280;margin-top:2px">浏览器先登录，终端会自动复用同一条代理出口</div></div></div>
+        <div class="m-item"><b style="width:18px;color:#0f766e">3</b><div class="nm">在项目目录里启动<div style="font-size:12px;color:#6b7280;margin-top:2px">先让它读一遍代码再提问，回答质量差别很大</div></div></div>
+      </div>
+      <div class="modal-note">这只是速览。<b>完整版</b>含提示词模板、常见报错处理、多工具配合、Token 省钱技巧——在「AI 出海课程包」里（¥19.9，永久更新）。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost sm" onclick="closeModal('tutModal')">先看看</button>
+      <button class="btn sm" onclick="closeModal('tutModal');go('svc');toast('已跳到增值服务 · AI 出海课程包')">去课程包看完整版（¥19.9）</button>
+    </div>
+  </div>
+</div>
+
+<!-- 非当前线路体检范围 -->
+<div class="modal-mask" id="srvCheckModal">
+  <div class="modal wide">
+    <div class="modal-head">非当前线路的体检范围</div>
+    <div class="modal-body">
+      <div style="font-size:13px;color:#374151;line-height:1.9">对 <b id="srvCheckName">这台服务器</b>（未在使用中）体检，只能覆盖<b>服务端</b>能力：</div>
+      <table class="m-table" style="margin-top:10px">
+        <tr><th>检查项</th><th style="width:150px">非当前线路</th><th style="width:110px">当前线路</th></tr>
+        <tr><td>L1 环境 / L2 配置（SSH 可达 · 配置校验）</td><td style="color:#10b981">✓ 可查</td><td style="color:#10b981">✓</td></tr>
+        <tr><td>L3 服务（gost 是否在跑）</td><td style="color:#10b981">✓ 可查</td><td style="color:#10b981">✓</td></tr>
+        <tr><td>L4 链路 / L5 鉴权（出口 IP · 带凭据请求）</td><td style="color:#6b7280;white-space:nowrap">✗ 需经该线路</td><td style="color:#10b981">✓</td></tr>
+        <tr><td>L6 转发 / L7 性能</td><td style="color:#6b7280;white-space:nowrap">✗ 需经该线路</td><td style="color:#10b981">✓</td></tr>
+      </table>
+      <div class="modal-note">建议口径：非当前线路只做<b>「服务端体检」</b>（确认服务活着、配置没坏、版本对不对）；想验证线路质量与延迟，先「切到此线路」再跑完整七层诊断。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost sm" onclick="closeModal('srvCheckModal')">取消</button>
+      <button class="btn ghost sm" onclick="closeModal('srvCheckModal');toast('已切到该线路，正在跑完整七层体检…');go('doctor')">切到该线路再体检</button>
+      <button class="btn sm" onclick="closeModal('srvCheckModal');toast('服务端体检完成：SSH 可达 · gost 运行中 · 配置校验通过（3 项）')">只做服务端体检</button>
+    </div>
+  </div>
+</div>
+
+<!-- 更新日志 -->
+<div class="modal-mask" id="logModal">
+  <div class="modal">
+    <div class="modal-head">更新日志</div>
+    <div class="modal-body">
+      <div class="ver-row"><span class="k">v0.2.1</span><span class="v" style="color:#ef4444">可更新 · 2026-11-20</span></div>
+      <ul>
+        <li>多服务器批量体检，逐台进度与汇总</li>
+        <li>备份与迁移提速（大配置约快 3 倍）</li>
+        <li>修复 macOS 首次启动偶发白屏</li>
+      </ul>
+      <div class="ver-row" style="margin-top:12px"><span class="k">v0.2.0</span><span class="v">当前版本 · 2026-11-14</span></div>
+      <ul>
+        <li>首页一屏化、AI 工具页、健康诊断独立入口</li>
+        <li>代理生命周期由 App 托管，断开即还原系统设置</li>
+        <li>订阅与试用、推广大使等级</li>
+      </ul>
+      <div class="modal-note">完整历史见 GitHub 仓库的 CHANGELOG；桌面版与 CLI 同 tag 发版，内核版本始终与外壳对齐。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost sm" onclick="closeModal('logModal')">关闭</button>
+      <button class="btn sm" onclick="closeModal('logModal');openUpdate()">看看 v0.2.1 详情</button>
+    </div>
+  </div>
+</div>
+
+<!-- 我持有的服务 -->
+<div class="modal-mask" id="heldModal">
+  <div class="modal wide">
+    <div class="modal-head">我持有的服务</div>
+    <div class="modal-body">
+      <table class="m-table">
+        <tr><th>服务</th><th style="width:80px">状态</th><th style="width:66px">剩余</th><th style="width:130px">有效期</th><th style="width:82px">操作</th></tr>
+        <tr><td>注册陪跑（1 对 1）</td><td style="color:#d97706">待服务</td><td>1 次</td><td>2026-12-14 前预约</td>
+          <td><button class="btn sm" onclick="toast('（演示）这里会打开时间选择（远程 30 分钟，含录屏回放）')">去预约</button></td></tr>
+        <tr><td>AI 出海课程包</td><td style="color:#10b981">已开通</td><td>不限次</td><td>永久 · 含后续更新</td>
+          <td><button class="btn sm ghost" onclick="closeModal('heldModal');go('svc')">去学习</button></td></tr>
+      </table>
+      <div class="modal-note">服务类订单与订阅不同：<b>按次核销</b>，剩余次数、预约时间、有效期在这里一眼可见；退款与发票仍在官网用户中心处理。</div>
+    </div>
+    <div class="modal-foot"><button class="btn sm ghost" onclick="closeModal('heldModal')">关闭</button></div>
+  </div>
+</div>
+
+<!-- 订阅到期一次性说明弹窗（到期当天首次启动弹一次，之后不再打扰） -->
+<div class="modal-mask" id="expiredModal">
+  <div class="modal">
+    <div class="modal-head">⏰ 订阅已到期 · 代理不受影响</div>
+    <div class="modal-body" style="font-size:13px;color:#374151;line-height:1.95">
+      <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:10px 12px;margin-bottom:10px">
+        <svg class="i sm" style="color:#047857"><use href="#i-check"/></svg><b>代理连接照常可用</b>：不限速、不中断，已保存的线路配置全部保留
+      </div>
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px">
+        <svg class="i sm" style="color:#b45309"><use href="#i-lock"/></svg><b>以下增值功能转为只读</b>：多服务器一键切换（仅保留 1 台）、批量体检、流量统计、AI 工具页、备份与迁移、健康提醒
+      </div>
+      <div class="modal-note" style="margin-top:10px">续费后立即全部恢复，无需重新配置。本说明<b>仅到期当天首次启动时显示一次</b>，之后只在首页横幅提醒，不再弹窗打扰。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost sm" onclick="closeModal('expiredModal')">我知道了</button>
+      <button class="btn sm" onclick="closeModal('expiredModal');buyPlan()">去官网续费 ›</button>
+    </div>
+  </div>
+</div>
+
+<!-- 跳转官网说明（通用） -->
+<div class="modal-mask" id="extModal">
+  <div class="modal">
+    <div class="modal-head" id="extTitle">即将打开官网用户中心</div>
+    <div class="modal-body">
+      <div id="extDesc" style="font-size:13px;color:#374151;line-height:1.95"></div>
+      <div class="modal-note">本地原型不实际跳转。<b>正式版</b>会调用系统浏览器打开 <span id="extUrl" style="color:#0f766e"></span>，登录态由官网会话维持；桌面版不保存你的支付与收款信息。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost sm" onclick="closeModal('extModal')">留在客户端</button>
+      <button class="btn sm" onclick="closeModal('extModal');toast('（演示）正式版此处会打开系统浏览器')">模拟打开</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- 托盘演示 -->
+<div class="tray-demo" id="trayDemo">
+  <div class="t-head"><svg class="i sm"><use href="#i-terminal"/></svg>dukou · <b id="trayState" style="color:#ef4444">未连接</b></div>
+  <div class="t-item" onclick="toggleConn()"><svg class="i sm"><use href="#i-bolt"/></svg>连接 / 断开</div>
+  <div class="t-item" onclick="go('servers');document.getElementById('trayDemo').classList.remove('show')"><svg class="i sm"><use href="#i-server"/></svg>切换服务器（新加坡 ▾）</div>
+  <div class="t-item" onclick="go('doctor');document.getElementById('trayDemo').classList.remove('show')"><svg class="i sm"><use href="#i-pulse"/></svg>一键体检</div>
+  <div class="t-item" onclick="go('set');document.getElementById('trayDemo').classList.remove('show')"><svg class="i sm"><use href="#i-archive"/></svg>备份配置</div>
+  <div class="t-item"><svg class="i sm"><use href="#i-pulse"/></svg>今日流量（订阅功能）</div>
+  <div class="t-item" onclick="go('home');document.getElementById('trayDemo').classList.remove('show')"><svg class="i sm"><use href="#i-home"/></svg>打开主面板</div>
+  <div class="t-item"><svg class="i sm"><use href="#i-x"/></svg>退出（退出时断开代理）</div>
+</div>
+
 <script>
-const $ = (id) => document.getElementById(id);
-let running = false;
-
-$('useKey').addEventListener('change', (e) => {
-  $('keyBox').style.display = e.target.checked ? 'block' : 'none';
-  $('sshPass').disabled = e.target.checked;
-});
-
-function setStep(step, cls, msg) {
-  const el = document.querySelector('.step[data-step="' + step + '"]');
-  if (!el) return;
-  el.classList.remove('run', 'ok', 'err');
-  if (cls) el.classList.add(cls);
-  if (msg) el.querySelector('.step-msg').textContent = msg;
-}
-
-function logLine(text, kind) {
-  const box = $('log');
-  const now = new Date().toTimeString().slice(0, 8);
-  const div = document.createElement('div');
-  const span = document.createElement('span');
-  span.className = 't';
-  span.textContent = now;
-  div.appendChild(span);
-  const body = document.createElement('span');
-  if (kind) body.className = kind;
-  body.textContent = text;
-  div.appendChild(body);
-  box.appendChild(div);
-  // 只保留最近 600 行，避免长时间运行把内存吃满
-  while (box.childElementCount > 600) box.removeChild(box.firstChild);
-  box.scrollTop = box.scrollHeight;
-}
-
-window.runtime.EventsOn('deploy:event', (ev) => {
-  if (ev.kind === 'log') {
-    logLine(ev.msg);
-    return;
+  var connected = false;
+  /* 图标工厂：JS 动态改写内容时用，避免把 emoji 写进 innerHTML */
+  function I(name, cls, color){
+    return '<svg class="' + (cls || 'i sm') + '"' + (color ? ' style="color:' + color + '"' : '')
+      + '><use href="#i-' + name + '"/></svg>';
   }
-  if (ev.kind === 'step_start') {
-    setStep(ev.step, 'run', ev.msg);
-    logLine('▶ ' + ev.msg);
-    return;
+  function go(p){ document.querySelectorAll('.nav-item').forEach(function(n){n.classList.toggle('active', n.dataset.page===p);});
+    document.querySelectorAll('.page').forEach(function(pg){pg.classList.remove('active');});
+    document.getElementById('page-'+p).classList.add('active');
+    if(p==='home'){ fitHero(); } }
+  document.querySelectorAll('.nav-item').forEach(function(n){ n.onclick=function(){go(n.dataset.page);}; });
+  /* 首页自适应：连接按钮随可用高度缩放 */
+  function fitHero(){
+    var wrap = document.querySelector('#page-home .connect-wrap');
+    var p = document.getElementById('powerBtn');
+    if(!wrap || !p) return;
+    var h = wrap.clientHeight;
+    if(!h) return;
+    var size = Math.round(Math.min(Math.max(h * 0.38, 88), 140));
+    p.style.width = size + 'px';
+    p.style.height = size + 'px';
+    p.style.fontSize = Math.round(size * 0.34) + 'px';
   }
-  if (ev.kind === 'step_done') {
-    setStep(ev.step, 'ok', ev.msg);
-    logLine('✓ ' + ev.msg, 'ok');
-    return;
-  }
-  if (ev.kind === 'step_fail') {
-    setStep(ev.step, 'err', ev.msg);
-    logLine('✗ ' + ev.msg, 'er');
-    if (ev.detail) logLine('   ' + ev.detail, 'er');
-    return;
-  }
-});
+  window.addEventListener('resize', fitHero);
 
-function collect() {
-  return {
-    serverHost: $('host').value.trim(),
-    sshPort: parseInt($('sshPort').value, 10) || 22,
-    sshUser: $('sshUser').value.trim() || 'root',
-    sshPassword: $('useKey').checked ? '' : $('sshPass').value,
-    sshKey: $('useKey').checked ? $('sshKey').value : '',
-    localSudo: $('localSudo').value,
-    installCodex: $('installCodex').checked,
-    port: parseInt($('port').value, 10) || 8443,
-    user: $('user').value.trim() || 'dukou',
-    password: $('pass').value.trim(),
+  /* 健康诊断：异常=一键修复，正常=一键体检 */
+  var docFixed = false;
+  function renderDoctor(){
+    var score=document.getElementById('docScore'), title=document.getElementById('docTitle'),
+        desc=document.getElementById('docDesc'), fix=document.getElementById('fixBtn'),
+        re=document.getElementById('reBtn'), hint=document.getElementById('docHint'),
+        row=document.getElementById('l7row');
+    if(docFixed){
+      row.className='step done';
+      score.textContent='100'; score.style.background='#d1fae5'; score.style.color='#047857';
+      title.textContent='全部通过 · 链路健康';
+      desc.textContent='7 层检查全部通过：环境、配置、服务、链路、鉴权、转发、性能';
+      hint.textContent='刚刚修复 · 已启用 bbr';
+      fix.style.display='none';
+      re.className='btn'; re.innerHTML='<svg class="i sm"><use href="#i-search"/></svg>一键体检';
+      row.innerHTML='<div class="n">✓</div><div style="flex:1"><b>L7 性能</b> · 丢包 0.2% · 吞吐 28.4 MB/s · 拥塞算法 bbr</div><span style="font-size:12px;color:#10b981">通过</span>';
+    } else {
+      row.className='step';
+      score.textContent='82'; score.style.background='#fef3c7'; score.style.color='#b45309';
+      title.textContent='基本健康 · 1 项可优化';
+      desc.textContent='环境、配置、服务、链路四层通过；性能层提示：拥塞算法非 bbr（跨国链路可能偏慢）';
+      hint.textContent='订阅功能 · 免费版可复制命令自行执行';
+      fix.style.display=''; fix.innerHTML='<svg class="i sm"><use href="#i-bolt"/></svg>一键修复';
+      re.className='btn ghost sm'; re.innerHTML='<svg class="i sm"><use href="#i-search"/></svg>重新体检';
+      row.innerHTML='<div class="n" style="background:#fef3c7;color:#b45309">!</div><div style="flex:1"><b>L7 性能</b> · 丢包 1.2% · 吞吐 18.6 MB/s · 拥塞算法 cubic（建议 bbr）<div style="font-size:12px;color:#6b7280;margin-top:3px">修复命令：modprobe tcp_bbr &amp;&amp; sysctl -w net.ipv4.tcp_congestion_control=bbr（可复制自行执行）</div></div><span style="font-size:12px;color:#b45309">可优化</span>';
+    }
+  }
+  function fixAll(){
+    var btn=document.getElementById('fixBtn');
+    btn.disabled=true; btn.textContent='修复中…';
+    setTimeout(function(){
+      btn.disabled=false; docFixed=true; renderDoctor();
+      document.getElementById('docMeta').textContent='刚刚完成修复 · 已重新验证 7 层';
+    }, 1200);
+  }
+  function runCheck(){
+    var re=document.getElementById('reBtn');
+    re.disabled=true; re.textContent='⏳ 体检中…';
+    setTimeout(function(){
+      re.disabled=false; renderDoctor();
+      document.getElementById('docMeta').textContent='刚刚完成体检 · 7 层全部执行';
+    }, 1400);
+  }
+
+  /* 通用弹窗 / 轻提示 / 跳转官网说明 */
+  var _lastFocus = null;
+  function openModal(id){
+    var m = document.getElementById(id); if(!m) return;
+    _lastFocus = document.activeElement;
+    m.classList.add('show');
+    var f = m.querySelector('input:not([disabled]),select,textarea') || m.querySelector('.modal');
+    setTimeout(function(){ if(f) f.focus(); }, 40);
+  }
+  function closeModal(id){
+    var m = document.getElementById(id); if(!m) return;
+    m.classList.remove('show');
+    if(_lastFocus && _lastFocus.focus){ try{ _lastFocus.focus(); }catch(e){} }
+  }
+  function closeTopModal(){
+    var open = [].slice.call(document.querySelectorAll('.modal-mask.show'));
+    if(!open.length) return;
+    var top = open[open.length-1];
+    if(top.id){ closeModal(top.id); } else { top.classList.remove('show'); }
+  }
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' || e.key === 'Esc') closeTopModal();
+  });
+  /* 新手引导：步骤切换 / 跳页 / 跳过 / 完成 */
+  function obGo(n){
+    document.querySelectorAll('#obModal .ob-pane').forEach(function(p){ p.classList.remove('on'); });
+    document.getElementById('ob'+n).classList.add('on');
+  }
+  function obJump(page, tip){
+    closeModal('obModal');
+    go(page);
+    if(tip) toast(tip);
+  }
+  function obSkip(){
+    closeModal('obModal');
+    toast('已跳过新手引导，可在 设置 → 关于 里随时重看');
+  }
+  function obFinish(){
+    closeModal('obModal');
+    toast('引导完成：网络配置 → 连接 → 装 AI 工具，三步走');
+  }
+  /* 小渡助手：开关 / 问答（原型为演示脚本，正式版接国内大模型端点） */
+  function toggleAssistant(){
+    document.getElementById('aiPanel').classList.toggle('show');
+  }
+  function openAssistant(){
+    document.getElementById('aiPanel').classList.add('show');
+  }
+  function closeAssistant(){
+    document.getElementById('aiPanel').classList.remove('show');
+  }
+  function aiSay(html, who){
+    var box = document.getElementById('aiMsgs');
+    var d = document.createElement('div');
+    d.className = 'ai-msg ' + (who || 'bot');
+    d.innerHTML = html;
+    box.appendChild(d);
+    box.scrollTop = box.scrollHeight;
+  }
+  var aiQA = {
+    ssh: { q: 'SSH 密码在哪里找？',
+      a: 'SSH 密码是<b>你买服务器时自己设置的</b>（不是厂商发给你的）。忘了也不要紧，去控制台重置：<br>'
+       + '· <b>腾讯云</b>：控制台 → 轻量应用服务器 → 点你的实例 → 「重置密码」，重置后重启生效<br>'
+       + '· <b>阿里云 / Vultr</b>：控制台实例详情页都有「重置密码 / Root Password」入口<br>'
+       + '拿到 IP + 密码后，填进「网络配置」页的对应框就行。<span class="act" onclick="go(\'network\')">打开网络配置 ›</span>' },
+    ak: { q: 'AccessKey 是什么？在哪里获取？',
+      a: 'AccessKey 是云厂商给你的「编程钥匙」——dukou 拿到它就能<b>自动创建实例、自动放行端口</b>，你完全不用进控制台。<br>'
+       + '获取：腾讯云控制台 → 右上角头像 → <b>API 密钥管理</b> → 新建密钥，得到 SecretId + SecretKey 两个值。<br>'
+       + '安全说明：密钥<b>只存在你自己电脑里</b>，加密保存，dukou 不上传。<span class="act" onclick="go(\'network\')">用 AccessKey 配置 ›</span>' },
+    buy: { q: '第一次买服务器怎么选？',
+      a: '照这个抄作业就行：<br>'
+       + '· <b>厂商</b>：腾讯云轻量（¥99/年，国内公司出海节点，支持 AccessKey 全自动）<br>'
+       + '· <b>地域</b>：新加坡（离国内近，延迟低）<br>'
+       + '· <b>配置</b>：2核2G 起步，跑 AI 工具足够<br>'
+       + '· <b>系统</b>：Ubuntu 24.04<br>'
+       + '买的时候设置的密码就是 SSH 密码，记好。<span class="act" onclick="go(\'shop\')">去看服务器 ›</span>' },
+    guide: { q: '带我去完成网络配置',
+      a: '好，跟我走三步：<br>'
+       + '<b>第 1 步</b>：打开「网络配置」页，把服务器的 IP、root、密码填进去（密码找不到就先问我「SSH 密码在哪里找」）<br>'
+       + '<b>第 2 步</b>：点「--dry-run 先看计划」，确认只会装代理服务、不改你其他东西<br>'
+       + '<b>第 3 步</b>：点「开始部署」，等四步流水线跑完<br>'
+       + '完成后回首页点大圆环「连接」，出口 IP 变了就成功了。<span class="act" onclick="go(\'network\')">开始第 1 步 ›</span>' }
   };
-}
-
-async function start() {
-  if (running) return;
-  const req = collect();
-  if (!req.serverHost) { $('status').textContent = '请先填服务器 IP'; return; }
-  if (!req.sshPassword && !req.sshKey) { $('status').textContent = '请填 SSH 密码或私钥'; return; }
-
-  running = true;
-  $('go').disabled = true;
-  $('retry').style.display = 'none';
-  $('result').classList.remove('on');
-  $('log').innerHTML = '';
-  $('steps').classList.add('on');
-  $('logbox').classList.add('on');
-  ['connect', 'server', 'client', 'codex'].forEach((s) => setStep(s, '', '等待开始'));
-  $('status').textContent = '部署中，请勿关闭窗口…';
-
-  try {
-    const res = await window.go.main.App.Deploy(req);
-    $('rAddr').textContent = res.serverAddr + ':' + res.port;
-    $('rUser').textContent = res.user;
-    $('rPass').textContent = res.password;
-    $('rIp').textContent = res.egressIp || '-';
-    $('result').classList.add('on');
-    $('status').textContent = '全部完成';
-  } catch (err) {
-    $('status').textContent = '失败：' + (err && err.message ? err.message : err);
-  } finally {
-    running = false;
-    $('go').disabled = false;
-    $('retry').style.display = 'inline-block';
+  function askAI(key){
+    var box = document.getElementById('aiMsgs');
+    if(key === 'free'){
+      var inp = document.getElementById('aiInput');
+      var v = inp.value.trim();
+      if(!v) return;
+      inp.value = '';
+      aiSay(v, 'user');
+      var hit = null;
+      if(/密码|ssh/i.test(v)) hit = 'ssh';
+      else if(/accesskey|密钥|secret/i.test(v)) hit = 'ak';
+      else if(/买|购买|选|推荐|配置.*服务器/.test(v)) hit = 'buy';
+      else if(/怎么|如何|带|教|步骤/.test(v)) hit = 'guide';
+      setTimeout(function(){
+        if(hit){ aiSay(aiQA[hit].a); }
+        else { aiSay('这个问题我记下来了。演示阶段我只能回答几个预设问题；<b>正式版</b>我会接国内大模型（无需连接代理也能用），并基于你的配置状态给出针对性建议。'); }
+      }, 500);
+      return;
+    }
+    var item = aiQA[key];
+    if(!item) return;
+    aiSay(item.q, 'user');
+    setTimeout(function(){ aiSay(item.a); }, 500);
   }
-}
+  var toastTimer=null;
+  function toast(msg){
+    var t=document.getElementById('toast');
+    t.textContent=msg; t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer=setTimeout(function(){ t.classList.remove('show'); }, 2800);
+  }
+  function ext(url, title, desc){
+    document.getElementById('extTitle').textContent=title;
+    document.getElementById('extDesc').innerHTML=desc;
+    document.getElementById('extUrl').textContent=url;
+    openModal('extModal');
+  }
+  function withdraw(){
+    ext('https://dukou.dev/account/withdraw','推广收益提现',
+      '提现流程：绑定支付宝 / 微信 → 输入金额（≥¥50）→ 提交，T+3 到账，无手续费。<br>'
+      + '当前可提现 <b style="color:#10b981">¥44.55</b>，还差 ¥5.45 满额；也可以选择把余额直接抵扣订阅（下个版本上线）。<br>'
+      + '<b>为什么不在客户端提现</b>：资金操作需要实名与风控，统一在官网完成，客户端不接触你的收款账户。');
+  }
+  /* 订阅：免费领取试用（首次打开为未领取态） */
+  var trialClaimed = false;
+  function claimTrial(){
+    if (trialClaimed){ toast('试用已领取，无需重复领取'); return; }
+    trialClaimed = true;
+    var st=document.getElementById('trialSt');
+    if(st){ st.textContent='试用中'; st.style.color='#d97706'; }
+    var ex=document.getElementById('trialExp'); if(ex) ex.textContent='2026-11-17';
+    var op=document.getElementById('trialOp');
+    if(op) op.innerHTML='<button class="btn sm" onclick="buyPlan()">续费 / 升级</button>';
+    var bar=document.getElementById('trialBar');
+    if(bar) bar.innerHTML='<svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>'
+      + '<span>免费试用中，剩余 <b>3 天</b> · 到期后代理照常可用，不限速不中断</span>'
+      + '<button class="btn sm ghost" onclick="go(\'me\')">查看套餐</button>';
+    var side=document.getElementById('sideTrial'); if(side) side.textContent='试用中 · 剩 3 天';
+    toast('领取成功：3 天全功能试用已开启，到期后代理仍可正常使用');
+    if(typeof fitHero==='function') setTimeout(fitHero,60);
+  }
+  function buyPlan(){
+    ext('https://dukou.dev/pricing','订阅购买',
+      '套餐、优惠与发票都在官网完成，支付走微信 / 支付宝。<br>客户端只读取订阅状态，<b>不接触你的支付凭证</b>；付款后回到客户端重新登录即可刷新到期时间。');
+  }
+  /* 到期锁定演示：非保留服务器灰锁只读 + 一次性到期说明弹窗 */
+  var expiredDemo = false;
+  function toggleExpireDemo(){
+    expiredDemo = !expiredDemo;
+    document.querySelectorAll('.srv.lockable').forEach(function(s){ s.classList.toggle('locked', expiredDemo); });
+    var link = document.getElementById('lockDemoLink');
+    if(expiredDemo){
+      openModal('expiredModal');
+      if(link) link.textContent='▶ 恢复订阅有效状态';
+    } else {
+      if(link) link.textContent='▶ 演示到期锁定状态';
+      toast('已恢复订阅有效状态：全部服务器可切换、可编辑');
+    }
+  }
+  /* AI 工具：安装 / 打开 / 教程 */
+  function openApp(name){ toast('正在打开 '+name+'…（演示：正式版会拉起本机终端或应用窗口）'); }
+  function installTool(name){
+    toast('正在安装 '+name+'…（下载 → sha256 校验 → 写入 PATH）');
+    setTimeout(function(){ toast(name+' 安装完成：右侧按钮已换成「打开应用 / 操作教程」'); }, 1900);
+  }
+  function openTutorial(name){
+    document.getElementById('tutTitle').textContent=name+' 上手指南';
+    openModal('tutModal');
+  }
+  /* 非当前线路：服务器体检 */
+  function serverCheck(name){
+    document.getElementById('srvCheckName').textContent=name;
+    openModal('srvCheckModal');
+  }
+  /* 设置：更新通道与安装包 */
+  function setChannel(el,name){
+    document.querySelectorAll('#segCh div').forEach(function(d){d.classList.remove('on');});
+    el.classList.add('on');
+    toast(name==='抢先版' ? '已切到抢先版：提前体验新功能，遇到问题可随时切回稳定版（订阅权益）' : '已切回稳定版：每个版本都经过完整验证');
+  }
+  function verifySha(){
+    toast('正在计算安装包 sha256，并与 Release 公示值比对…');
+    setTimeout(function(){ toast('校验通过：sha256 一致，安装包未被篡改，可以安全安装'); }, 1500);
+  }
+  function redownload(){
+    toast('开始重新下载完整安装包（约 28 MB）…');
+    setTimeout(function(){ toast('下载完成并已校验；上一版安装包保留，可随时回退'); }, 2000);
+  }
+  /* 网络配置 */
+  function startDeploy(){
+    toast('开始部署…（演示：正式版会在这里实时输出四步流水线日志）');
+  }
+  /* 服务器列表 */
+  function switchTo(name){
+    toast('已切换到 '+name+'：旧线路断开，新线路 2 秒内就绪（国内分流不受影响）');
+  }
+  function retryDeploy(){
+    toast('正在重试部署「洛杉矶 · 搬瓦工」…');
+    setTimeout(function(){ toast('重试失败：SSH 仍超时。建议先检查安全组 22 端口与 IP 白名单'); }, 1900);
+  }
+  function openEdit(name, ip, port, user, tag){
+    document.getElementById('edName').value=name;
+    document.getElementById('edIp').value=ip;
+    document.getElementById('edPort').value=port;
+    document.getElementById('edUser').value=user;
+    document.getElementById('edTag').value='使用中';
+    openModal('editModal');
+  }
+  function saveEdit(){
+    var n=document.getElementById('edName').value || '未命名服务器';
+    closeModal('editModal');
+    toast('已保存并应用：'+n+'（本机配置已更新，未重启远端服务）');
+  }
+  /* 批量体检 */
+  var batchData=[
+    {n:'新加坡 · 腾讯云轻量', ok:true,  t:'通过 · 82 分（1 项可优化）'},
+    {n:'东京 · Vultr',        ok:true,  t:'通过 · 96 分'},
+    {n:'洛杉矶 · 搬瓦工',      ok:false, t:'失败 · SSH 超时（连接阶段）'}
+  ];
+  function runBatchCheck(){
+    openModal('batchModal');
+    var box=document.getElementById('batchList'), note=document.getElementById('batchNote');
+    box.innerHTML=batchData.map(function(d){
+      return '<div class="m-item"><span class="nm">'+d.n+'</span><span class="st wait">排队中…</span></div>';
+    }).join('');
+    note.textContent='正在逐台执行七层诊断…';
+    var items=box.children;
+    batchData.forEach(function(d,i){
+      setTimeout(function(){
+        var st=items[i].lastElementChild;
+        st.className='st '+(d.ok?'ok':'bad');
+        st.textContent=d.t;
+        if(i===batchData.length-1){
+          setTimeout(function(){
+            note.innerHTML='完成：<b style="color:#10b981">2 台通过</b> · <b style="color:#ef4444">1 台失败</b>。失败的那台可在列表里点「重试部署」。';
+          }, 420);
+        }
+      }, 650 + i*780);
+    });
+  }
+  /* 同步配置 */
+  function openSync(){
+    document.getElementById('syncBody').innerHTML=
+      '<div class="mini-note" style="margin-bottom:12px">以「新加坡 · 腾讯云轻量」为基准，把代理端口、密码、分流规则同步到其余服务器。适用于多机同一套密码的场景。</div>'
+      + '<div class="m-list">'
+      + '<div class="m-item"><span class="nm">东京 · Vultr</span><span class="st wait">将重启 gost（约 2 秒断流）</span></div>'
+      + '<div class="m-item"><span class="nm">洛杉矶 · 搬瓦工</span><span class="st bad">SSH 不可达，本次跳过</span></div>'
+      + '</div>'
+      + '<div class="modal-note">只写代理相关配置，不动系统设置、不动 SSH 端口；当前使用中的线路不受影响。</div>';
+    document.getElementById('syncFoot').innerHTML=
+      '<button class="btn ghost sm" onclick="closeModal(\'syncModal\')">取消</button>'
+      + '<button class="btn sm" onclick="doSync()">确认同步</button>';
+    openModal('syncModal');
+  }
+  function doSync(){
+    document.getElementById('syncBody').innerHTML=
+      '<div class="m-list">'
+      + '<div class="m-item"><span class="nm">东京 · Vultr</span><span class="st ok">已同步 · 服务已重启</span></div>'
+      + '<div class="m-item"><span class="nm">洛杉矶 · 搬瓦工</span><span class="st bad">已跳过（SSH 超时）</span></div>'
+      + '</div>'
+      + '<div class="modal-note">同步完成：1 台成功、1 台跳过。跳过的那台恢复连通后，可在列表里重新同步。</div>';
+    document.getElementById('syncFoot').innerHTML=
+      '<button class="btn sm" onclick="closeModal(\'syncModal\')">完成</button>';
+  }
+  /* 导出清单 */
+  function doExport(){
+    var v=document.getElementById('expFmt').value;
+    var ext2 = v.indexOf('CSV')===0 ? '.csv' : (v.indexOf('JSON')===0 ? '.json' : '.dukoubak');
+    closeModal('exportModal');
+    toast('已导出 dukou-servers-2026-11-14'+ext2+'（3 台服务器'+(ext2==='.dukoubak'?'，含加密密码':'，密码已脱敏')+'）');
+  }
+  /* 点遮罩关闭弹窗 */
+  document.querySelectorAll('.modal-mask').forEach(function(m){
+    m.addEventListener('click', function(e){ if(e.target===m) m.classList.remove('show'); });
+  });
+  /* 统一注入关闭按钮与无障碍语义（标题用 textContent 更新也不会被覆盖） */
+  document.querySelectorAll('.modal').forEach(function(md){
+    md.setAttribute('role','dialog'); md.setAttribute('aria-modal','true');
+    if(!md.hasAttribute('tabindex')) md.setAttribute('tabindex','-1');
+    if(md.querySelector('.m-close')) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'm-close'; b.setAttribute('aria-label','关闭');
+    b.innerHTML = '<svg class="i sm"><use href="#i-x"/></svg>';
+    b.addEventListener('click', function(){
+      var mask = md.closest('.modal-mask');
+      if(mask){ mask.classList.remove('show'); }
+    });
+    md.appendChild(b);
+  });
 
-$('go').addEventListener('click', start);
-$('retry').addEventListener('click', start);
+  function toggleConn(){
+    connected = !connected;
+    document.getElementById('powerBtn').classList.toggle('on', connected);
+    document.getElementById('connState').textContent = connected ? '已连接 · 国内直连 + 国外走代理' : '未连接 · 当前为直连（国内访问正常）';
+    document.getElementById('connTip').textContent = connected ? '出口已验证：47.xx.xx.10（你的代理服务器）' : '分流自动生效：国内直连，国外走代理';
+    document.getElementById('st1').innerHTML = connected ? '<b>47.xx.xx.10</b><span>出口 IP</span>' : '<b>—</b><span>出口 IP</span>';
+    document.getElementById('st2').innerHTML = connected ? '<b>63ms</b><span>延迟</span>' : '<b>—</b><span>延迟</span>';
+    document.getElementById('aiWarn').style.display = connected ? 'none' : 'block';
+    document.getElementById('trayState').textContent = connected ? '已连接' : '未连接';
+    document.getElementById('trayState').style.color = connected ? '#10b981' : '#ef4444';
+  }
+  function segNet(el, mode){
+    document.querySelectorAll('#segNet div').forEach(function(d){d.classList.remove('on');});
+    el.classList.add('on');
+    document.getElementById('net-ssh').style.display = mode==='ssh' ? 'block' : 'none';
+    document.getElementById('net-ak').style.display  = mode==='ak'  ? 'block' : 'none';
+  }
+  function openUpdate(){ document.getElementById('updModal').classList.add('show'); }
+  function closeUpdate(){ document.getElementById('updModal').classList.remove('show'); }
+  function dismissUpdate(){
+    document.getElementById('updHome').style.display = 'none';
+    document.getElementById('ignoredLine').style.display = 'block';
+    fitHero();
+  }
+  function skipUpdate(){ closeUpdate(); dismissUpdate(); }
+  function restoreNotice(){
+    document.getElementById('updHome').style.display = 'flex';
+    document.getElementById('ignoredLine').style.display = 'none';
+    fitHero();
+  }
+  function updateNow(){
+    closeUpdate();
+    document.getElementById('updHome').style.display = 'none';
+    go('set');
+    document.getElementById('verPill').textContent = '有新版本';
+    document.getElementById('verPill').className = 'pill err';
+    document.getElementById('updState').innerHTML = '<span style="display:flex;color:#0f766e">'+I('sparkle','i lg')+'</span>'
+      + '<div style="flex:1;font-size:13px"><b style="color:#ef4444">发现新版本 v0.2.1</b>'
+      + '<div style="font-size:12px;color:#6b7280;margin-top:3px">多服务器批量体检 · 备份迁移提速 · 约 28 MB</div></div>'
+      + '<button class="btn sm" id="updBtn" onclick="startUpdate()">立即更新</button>';
+    setTimeout(startUpdate, 400);
+  }
+  function checkUpdate(){
+    var s = document.getElementById('updState');
+    document.getElementById('verPill').textContent = '检查中';
+    document.getElementById('verPill').className = 'pill off';
+    s.innerHTML = '<span style="font-size:16px">⏳</span><div style="flex:1;font-size:13px;color:#0f766e">正在检查更新…</div>';
+    setTimeout(function(){
+      document.getElementById('verPill').textContent = '有新版本';
+      document.getElementById('verPill').className = 'pill err';
+      s.innerHTML = '<span style="display:flex;color:#0f766e">'+I('sparkle','i lg')+'</span><div style="flex:1;font-size:13px"><b style="color:#ef4444">发现新版本 v0.2.1</b>'
+        + '<div style="font-size:12px;color:#6b7280;margin-top:3px">多服务器批量体检 · 备份迁移提速 · 安装包约 28 MB</div></div>'
+        + '<button class="btn sm" id="updBtn" onclick="startUpdate()">立即更新</button>';
+    }, 800);
+  }
+  function startUpdate(){
+    var p = document.getElementById('updProg'), b = document.getElementById('updBar'), btn = document.getElementById('updBtn');
+    p.style.display = 'block'; b.style.width = '0%';
+    btn.disabled = true; btn.textContent = '下载中…';
+    var n = 0;
+    var t = setInterval(function(){
+      n += Math.random()*16 + 7;
+      if (n >= 100){
+        n = 100; clearInterval(t);
+        btn.textContent = '已下载';
+        document.getElementById('updState').innerHTML = '<span style="display:flex;color:#10b981">'+I('check','i lg')+'</span>'
+          + '<div style="flex:1;font-size:13px"><b style="color:#10b981">v0.2.1 已下载并通过 sha256 校验</b>'
+          + '<div style="font-size:12px;color:#6b7280;margin-top:3px">重启后完成安装，服务器配置与登录态保留</div></div>'
+          + '<button class="btn sm">重启并安装</button>';
+      }
+      b.style.width = n + '%';
+    }, 300);
+  }
+  document.getElementById('aiWarn').style.display = 'block';
+  fitHero();
+  setTimeout(fitHero, 120);
+  renderDoctor();
 </script>
 </body>
 </html>
