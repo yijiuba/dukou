@@ -10,9 +10,12 @@
 | 登记时间 | 会话 / 任务 | 占用文件 | 意图 | 状态 |
 |---|---|---|---|---|
 | 11-16 17:58 | 账号线 T9 | `internal/account/**`、`js/60-account.js`、`js/50-events.js`（末尾追加加载器） | 登录弹窗 + 订阅状态，运行时注入，**未碰 index.html** | 已提交 `44b9956`，UI 待真机验收 |
-| 11-16 17:55 | M3 客户端线 | `index.html`、`internal/app/{backup,export,update}.go`、`internal/store/backup.go`、`desktop/main.go`、`cmd/root.go`、`.github/workflows/*`、`wails.json` | 备份/导出/更新 + 发版 v0.2.0 准备 | 进行中（对方维护） |
+| 11-16 18:55 | M3 客户端线 | — | v0.2.0 功能全部提交完毕（备份/导出/更新/锁定/对话框修复），**待用户真机验收后打 tag** | 已完成，claim 释放 |
 
-**账号线未提交的遗留**：`desktop/app.go`、`js/20-api.js` 两个文件里既有我的字段转发，也有对方的备份/更新方法，属于**混改文件**，等对方把 `internal/app/backup.go` 等提交入库后一起提交，避免我这边造出"引用未入库文件"的坏提交。
+**M3 线交接备忘（11-16 18:55）**：
+- 新增 `internal/winfile/**`（M3 独占）：comdlg32 文件对话框，替换了 Wails SaveFileDialog（真机闪退，见 CHANGELOG 0.2.0 修复节）。账号线如需弹文件对话框请用它，不要用 `runtime.SaveFileDialog`。
+- `index.html` 的 dev 自检钩子扩展了备份提交流程，仅 `-dev` 结尾版本触发，正式构建不受影响。
+- 混改文件 `desktop/app.go`、`js/20-api.js` 已随 M3 提交入库（`2e3c872`/`522e5d5`/`6c44fc0`），账号线可在此之上追加。
 
 ## 二、文件所有权
 
