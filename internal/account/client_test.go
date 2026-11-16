@@ -49,15 +49,15 @@ func TestVerifyCodeSignsIn(t *testing.T) {
 		case "/.cloud/auth/v1/verification/verify":
 			var body map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&body)
-			if body["token"] != "123456" || body["verification_id"] != "vid" {
+			if body["verification_code"] != "123456" || body["verification_id"] != "vid" {
 				t.Errorf("校验请求体不对: %v", body)
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"verification_token": "vt-1"})
 		case "/.cloud/auth/v1/signin":
 			var body map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&body)
-			if body["verification_token"] != "vt-1" {
-				t.Errorf("登录请求应带 verification_token，实际 %v", body)
+			if body["verification_token"] != "vt-1" || body["username"] != "a@b.com" {
+				t.Errorf("登录请求应带 username(=邮箱) + verification_token，实际 %v", body)
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "at-1", "refresh_token": "rt-1", "expires_in": 3600,
@@ -100,6 +100,11 @@ func TestVerifyCodeNewUserSignsUp(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"verification_token": "vt-1"})
 		case "/.cloud/auth/v1/signup":
 			signupHit = true
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body["email"] != "new@b.com" || body["verification_token"] != "vt-1" {
+				t.Errorf("signup 请求应带 email + verification_token，实际 %v", body)
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "at-2"})
 		default:
 			t.Errorf("非预期路径 %s", r.URL.Path)

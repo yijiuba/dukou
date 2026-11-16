@@ -220,7 +220,7 @@ func (c *Client) RequestCode(email string) (CodeSent, error) {
 		RetryAfter     int    `json:"retry_after"`
 	}
 	err := c.do(http.MethodPost, "/.cloud/auth/v1/verification",
-		map[string]any{"email": email}, &raw, false)
+		map[string]any{"email": email, "usage": "email"}, &raw, false)
 	if err != nil {
 		return CodeSent{}, err
 	}
@@ -245,11 +245,12 @@ func (c *Client) VerifyCode(email, verificationID string, isExisting bool, code 
 	var verified struct {
 		VerificationToken string `json:"verification_token"`
 	}
+	// 字段名按 SDK 源码实测校正（2026-11-16）：verify 只收 verification_id +
+	// verification_code，不收 email/is_existing_user；此前推断的 token 字段名
+	// 会被服务端以 "verification_id and verification_code required" 拒绝。
 	err := c.do(http.MethodPost, "/.cloud/auth/v1/verification/verify", map[string]any{
-		"email":            email,
-		"verification_id":  verificationID,
-		"is_existing_user": isExisting,
-		"token":            code,
+		"verification_id":   verificationID,
+		"verification_code": code,
 	}, &verified, false)
 	if err != nil {
 		return Session{}, err
@@ -267,10 +268,15 @@ func (c *Client) VerifyCode(email, verificationID string, isExisting bool, code 
 		RefreshToken string `json:"refresh_token"`
 		ExpiresIn    int    `json:"expires_in"`
 	}
-	err = c.do(http.MethodPost, path, map[string]any{
-		"email":              email,
-		"verification_token": verified.VerificationToken,
-	}, &raw, false)
+	// signin 的身份字段叫 username（值就是邮箱，SDK 源码实测校正）；
+	// signup 则仍是 email。两者不能混用。
+	body := map[string]any{"verification_token": verified.VerificationToken}
+	if isExisting {
+		body["username"] = email
+	} else {
+		body["email"] = email
+	}
+	err = c.do(http.MethodPost, path, body, &raw, false)
 	if err != nil {
 		return Session{}, err
 	}
