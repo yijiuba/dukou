@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -33,8 +34,10 @@ const releasePage = "https://github.com/yijiuba/dukou/releases"
 // 只在用户点「检查更新」或启动后延迟触发时调用，不做后台轮询——
 // 这类工具没必要为了一个版本号常驻一个定时器。
 func (s *Service) CheckUpdate() (UpdateInfo, error) {
+	log.Printf("[update] check start (current=%s)", Version)
 	info, err := fetchLatestRelease(releaseAPI)
 	if err != nil {
+		log.Printf("[update] check failed: %v", err)
 		return UpdateInfo{}, err
 	}
 	info.Current = Version
@@ -43,6 +46,7 @@ func (s *Service) CheckUpdate() (UpdateInfo, error) {
 		info.Notes = ""
 		info.DownloadURL = releasePage
 	}
+	log.Printf("[update] check done (latest=%s available=%v)", info.Latest, info.Available)
 	return info, nil
 }
 

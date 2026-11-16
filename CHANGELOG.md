@@ -40,6 +40,12 @@ v0.2「产品化基座」：把「部署 → 连接 → 体检」做成真正可
 
 - **退出不断开代理**：桌面层此前没接 `OnShutdown`，从托盘正常退出后系统代理仍指向
   已经关掉的 `127.0.0.1:7890`，浏览器全站打不开——现在退出先还原系统代理
+- **点「立即备份」填完密码应用闪退**：Wails v2.10.1 的文件对话框（COM IFileSaveDialog）
+  与 WebView2 组合存在崩溃——对话框弹出时主窗口收到 WM_ACTIVATE，WebView2 Focus
+  回调返回 E_INVALIDARG，进程整体退出。改用系统记事本同款的 comdlg32 实现
+  （`internal/winfile`），并修掉三个连带缺陷：跨线程 owner 未定义行为、
+  桥接线程是 MTA 而 Explorer 对话框要求 STA、filter 含内嵌 NUL 时
+  `UTF16FromString` 报 EINVAL
 - gost 版本号无 `v` 前缀导致误判"未安装"，每次连接重下 17 MB
 - 没有快照时 `Stop` 会删掉用户原有的代理配置；改成无快照直接返回
 - 重复连接把自己写入的 `7890` 当成"原值"，最终还原到一个谁也没配过的状态
