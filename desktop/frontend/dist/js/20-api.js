@@ -54,6 +54,9 @@
     /* ── 分层体检（真接口，M2-1 接入） ── */
     doctor: function (serverId) { return call('Doctor', [serverId]); },
 
+    /* ── 残留清理（真接口，M2-4 接入） ── */
+    cleanupResidue: function () { return call('CleanupResidue'); },
+
     /* ── 应用信息 ── */
     appInfo: function () { return call('AppInfo'); },
     configDir: function () { return call('ConfigDir'); }

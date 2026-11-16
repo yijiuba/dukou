@@ -483,6 +483,11 @@ window.addEventListener('keydown',function(e){
       <div class="page active" id="page-home">
         <div class="page-head"><h2>首页</h2>
           <div class="sub">手动连接更安全，不常驻后台 · 代理不限速，订阅只解锁桌面端增值功能</div></div>
+        <div class="warn-bar" id="residueBar" style="display:none;border-color:#fecaca;background:#fef2f2">
+          <svg class="i sm" style="color:#b91c1c"><use href="#i-alert"/></svg>
+          <span style="flex:1">检测到上次异常退出留下的代理设置，浏览器可能上不了网。<b>一键清理</b>会还原到之前的配置。</span>
+          <button class="btn sm" onclick="cleanupResidue()">一键清理</button>
+        </div>
         <div class="upd-bar" id="updHome">
           <span class="ub-ico"><svg class="i sm"><use href="#i-sparkle"/></svg></span>
           <b>v0.2.1 可用</b>
@@ -627,7 +632,7 @@ window.addEventListener('keydown',function(e){
       <div class="page" id="page-ai">
         <div class="page-head"><h2>AI 工具</h2>
           <div class="sub">一键装好 Codex / Claude Code，自动检测你的系统环境与安装状态</div></div>
-        <div class="warn-bar" id="aiWarn"><svg class="i sm" style="color:#b45309"><use href="#i-alert"/></svg>当前未连接代理，下载安装与登录海外平台需要先回首页点「连接」</div>
+      <div class="warn-bar" id="aiWarn"><svg class="i sm" style="color:#b45309"><use href="#i-alert"/></svg>当前未连接代理，下载安装与登录海外平台需要先回首页点「连接」</div>
         <div class="card tool">
           <div class="tool-icon" style="background:#111827">CX</div>
           <div class="tool-info">
@@ -1925,10 +1930,20 @@ window.addEventListener('keydown',function(e){
       ts.textContent = connected ? '已连接' : '未连接';
       ts.style.color = connected ? '#10b981' : '#ef4444';
     }
-    /* 上次异常退出留下的代理设置：明确告知，避免用户以为浏览器自己坏了 */
-    if (_connStatus.residue) {
-      toast('检测到上次异常退出留下的代理设置，点「连接」会自动接管，或运行 dukou disconnect 清理');
-    }
+    /* 上次异常退出留下的代理设置：显示醒目横条，一键清理（§六验收） */
+    var rb = document.getElementById('residueBar');
+    if (rb) rb.style.display = _connStatus.residue ? 'flex' : 'none';
+  }
+
+  function cleanupResidue(){
+    if (!DukouAPI.hasBackend()) return;
+    DukouAPI.cleanupResidue()
+      .then(function(st){
+        applyConnStatus(st);
+        if (!st.residue) toast('已清理：系统代理已还原到之前的设置');
+        else toast('清理后仍检测到残留，建议重启电脑或联系支持');
+      })
+      .catch(function(e){ toast('清理失败：' + e.message); });
   }
   window.onProxyStatus = applyConnStatus;
 
@@ -2054,6 +2069,10 @@ window.addEventListener('keydown',function(e){
          供自动化验证渲染链路；正式构建版本号不带 -dev，不会触发。 */
       if (info && /-dev$/.test(info.version || '')) {
         setTimeout(function(){ nav('doctor'); runCheck(); }, 1200);
+        /* dev 自检：检测到残留代理时自动跑一次清理，验证 GUI 清理链路 */
+        DukouAPI.proxyStatus().then(function(st){
+          if (st && st.residue) setTimeout(cleanupResidue, 5000);
+        }).catch(function(){});
       }
     }).catch(function () {});
     renderServers();

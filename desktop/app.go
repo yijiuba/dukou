@@ -82,6 +82,11 @@ func (a *App) Disconnect() error {
 	return a.svc.Disconnect()
 }
 
+// CleanupResidue 一键清理残留代理（上次异常退出留下的系统代理接管）。
+func (a *App) CleanupResidue() (app.Status, error) {
+	return a.svc.CleanupResidue()
+}
+
 // SwitchServer 切换线路：先断开旧线路，再连新线路。
 func (a *App) SwitchServer(serverID string) error {
 	return a.svc.SwitchServer(serverID)

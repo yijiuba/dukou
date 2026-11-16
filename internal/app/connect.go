@@ -74,6 +74,23 @@ func (s *Service) Disconnect() error {
 	return nil
 }
 
+// CleanupResidue 一键清理残留代理（§六验收：手动杀进程模拟崩溃 →
+// 重启 App 提示残留 → 点清理后系统干净）。
+//
+// proxy.Stop 按快照收尾：杀掉快照记录的 PID、按快照逐项还原注册表、
+// 清理状态与 PAC 文件。清理后重新读状态，把最新情况还给前端。
+func (s *Service) CleanupResidue() (Status, error) {
+	if err := proxy.Stop(s.proxyOptions()); err != nil {
+		return Status{}, err
+	}
+	st, err := proxy.Current(s.proxyOptions())
+	if err != nil {
+		return Status{}, err
+	}
+	s.emitStatus(st)
+	return st, nil
+}
+
 // SwitchServer 已连接时切换线路：先彻底断开，再连新线路（§5.1）。
 //
 // 顺序不能颠倒：直接连新的会读到「已有快照」，把旧线路的原始代理配置
