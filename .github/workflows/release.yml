@@ -83,10 +83,14 @@ jobs:
 
       - name: 编译桌面程序
         # Windows runner 默认 shell 是 PowerShell，不认 \ 续行。显式指定 bash。
+        # 版本号必须注入：桌面版的「检查更新」用 AppInfo().Version 与最新 tag 比较，
+        # 不注入的话发布出去的成品永远自称 0.2.0-dev，更新提醒形同虚设。
         shell: bash
         run: |
           mkdir -p dist
-          go build -tags gui -trimpath -ldflags "-s -w" \
+          VERSION="${GITHUB_REF_NAME#v}"
+          go build -tags gui -trimpath \
+            -ldflags "-s -w -X github.com/yijiuba/dukou/internal/app.Version=$VERSION" \
             -o dist/${{ matrix.out }} ./desktop
           ls -lh dist/
 

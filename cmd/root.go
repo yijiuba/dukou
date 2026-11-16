@@ -7,7 +7,8 @@ import (
 )
 
 // Version 可在构建时用 -ldflags "-X github.com/yijiuba/dukou/cmd.Version=x.y.z" 覆盖。
-var Version = "0.1.0-dev"
+// 与桌面版 internal/app.Version 保持同一口径：发版时由 release.yml 统一注入 tag。
+var Version = "0.2.0-dev"
 
 // ErrReported 表示错误已经以人类可读的方式打印过，入口不必再重复一遍。
 var ErrReported = errors.New("already reported")

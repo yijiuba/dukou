@@ -172,7 +172,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          go build -tags gui -trimpath -ldflags "-s -w" \
+          go build -tags gui -trimpath \
+            -ldflags "-s -w -X github.com/yijiuba/dukou/internal/app.Version=0.2.0-ci" \
             -o dist/${{ matrix.out }} ./desktop
           ls -lh dist/
 
