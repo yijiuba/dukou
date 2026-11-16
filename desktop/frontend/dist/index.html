@@ -392,11 +392,24 @@
      Wails 真机上有系统窗口，这层外壳不剥掉就是「窗口套窗口」。
      保留 data-proto 开关：改成 "1" 就回到可点击原型，同一份文件两种用途。 */
   html[data-proto="0"] body { background:var(--bg-page); display:block; padding:0; min-height:100vh; }
+  /* 文档层锁死：界面只有 .content / .sidebar 两个内部滚动区，
+     html/body 不允许滚动，也不允许滚动链/回弹——否则页面到头还能整页拖着走 */
+  html[data-proto="0"], html[data-proto="0"] body { height:100%; overflow:hidden; overscroll-behavior:none; }
   html[data-proto="0"] .window { width:100%; height:100vh; border-radius:0; box-shadow:none; }
   html[data-proto="0"] .titlebar { display:none; }        /* 标题栏交给系统 */
   html[data-proto="0"] .side-foot .badge { display:none; } /* 原型里的托盘演示提示，不属于产品 */
   html[data-proto="0"] .tray-demo { display:none; }        /* 托盘菜单是原型示意，真机未做 */
 </style>
+<script>
+/* 桌面壳：禁页面缩放，防止"整页可上下左右拖动"。
+   Ctrl+滚轮 / 触摸板双指捏合到达 renderer 时是带 ctrlKey 的 wheel 事件，
+   页面把它消费掉（preventDefault），浏览器层就不再缩放——Figma 等画布类应用同款做法。
+   Go 侧 main.go 还会追加 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS 兜底。 */
+window.addEventListener('wheel',function(e){ if(e.ctrlKey) e.preventDefault(); },{passive:false});
+window.addEventListener('keydown',function(e){
+  if(e.ctrlKey && (e.key==='+'||e.key==='-'||e.key==='='||e.key==='0')) e.preventDefault();
+});
+</script>
 </head>
 <body>
 <!-- 图标集：24×24 线性图标，stroke 继承 currentColor，全量替换结构性 emoji -->
