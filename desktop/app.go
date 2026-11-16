@@ -320,3 +320,8 @@ func (a *App) AIToolLaunch(id string) (aitool.Result, error) {
 func (a *App) DeployServer(id string, in store.ServerInput) (deploy.Result, error) {
 	return a.svc.DeployServer(id, in)
 }
+
+// RefreshServerGeo 按 IP 归属回填服务器名称与旗帜（只补缺失，不覆盖用户输入）。
+func (a *App) RefreshServerGeo(id string) (store.Server, error) {
+	return a.svc.RefreshServerGeo(id)
+}

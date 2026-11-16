@@ -42,6 +42,7 @@
     listServers: function () { return call('ListServers'); },
     addServer: function (input) { return call('AddServer', [input]); },
     updateServer: function (id, input) { return call('UpdateServer', [id, input]); },
+    refreshServerGeo: function (id) { return call('RefreshServerGeo', [id]); },
     removeServer: function (id) { return call('RemoveServer', [id]); },
 
     /* ── 部署与连接（真接口） ── */

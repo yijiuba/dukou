@@ -2093,12 +2093,21 @@ window.addEventListener('keydown',function(e){
             ? '<div class="srv-sec">待部署（' + pendRows.length + '）</div>'
               + pendRows.map(function (r) { return r.html; }).join('')
             : '');
+      /* 裸 IP 行自动补地区/服务商信息（后端只补缺失，不覆盖用户起的名字）。
+         每个 ID 每会话只试一次，识别成功后 renderServers 重渲染出名称与旗帜。 */
+      _servers.forEach(function (s) {
+        if (s.flag || s.name !== s.host) return;
+        if (!s.id || _geoTried[s.id]) return;
+        _geoTried[s.id] = true;
+        DukouAPI.refreshServerGeo(s.id).then(function(){ renderServers(); }).catch(function(){});
+      });
       refreshHomeQuick();
     }).catch(function (e) {
       box.innerHTML = '<div class="mini-note" style="padding:10px 0;color:#b91c1c">清单读取失败：' + (e.message || e) + '</div>';
     });
   }
   /* 到期锁定的真实拦截：按钮已 disabled，这里再挡一层（键盘/脚本触发也不放行） */
+  var _geoTried = {}; /* 本会话已尝试过地理识别的服务器 ID */
   function blockedByLock(idx) {
     if (!expiredDemo) return false;
     var s = _servers[idx];
