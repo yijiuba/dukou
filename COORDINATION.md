@@ -10,7 +10,7 @@
 | 登记时间 | 会话 / 任务 | 占用文件 | 意图 | 状态 |
 |---|---|---|---|---|
 | 11-16 17:58 | 账号线 T9 | `internal/account/**`、`js/60-account.js`、`js/50-events.js`（末尾追加加载器） | 登录弹窗 + 订阅状态，运行时注入，**未碰 index.html** | 已提交 `44b9956`，UI 待真机验收 |
-| 11-16 18:55 | M3 客户端线 | — | v0.2.0 功能全部提交完毕（备份/导出/更新/锁定/对话框修复），**待用户真机验收后打 tag** | 已完成，claim 释放 |
+| 11-16 19:06 | M3 客户端线 | `internal/app/{app,connect,status}.go`（仅内部实现：代理驱动可注入）、`index.html` AI 工具页 | 多服务器切换单测 + 摘 AI 页假状态，随后接真 | 进行中，未动账号线文件 |
 
 **M3 线交接备忘（11-16 18:55）**：
 - 新增 `internal/winfile/**`（M3 独占）：comdlg32 文件对话框，替换了 Wails SaveFileDialog（真机闪退，见 CHANGELOG 0.2.0 修复节）。账号线如需弹文件对话框请用它，不要用 `runtime.SaveFileDialog`。
@@ -56,6 +56,7 @@
 | 时间 | 现象 | 归属 | 处理 |
 |---|---|---|---|
 | 11-16 17:35 | `internal/app` 编译报 `undefined: fmt`，约 5 分钟后自修 | M3 线 | 已恢复，无需动作 |
+| 11-16 19:06 | 多服务器切换补单测时新增 `internal/app/proxy_driver.go`（`proxyDriver` 接口）：`Connect/Disconnect/ProxyStatus/CleanupResidue` 改走 `s.drv()`，**对外签名与行为不变**；`SwitchServer` 增加「目标存在」前置校验 | M3 线 | 已提交 `2c9ae59`。账号线若新增代理调用，请用 `s.drv()` 而不是直接调 `proxy.*` |
 
 ## 五、动共享文件前的 10 秒自检
 
