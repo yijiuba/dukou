@@ -204,6 +204,9 @@
   .srv .meta b { font-size:14px; }
   .srv .meta .mline { font-size:12px; color:#6b7280; margin-top:4px; }
   .srv .ops { display:flex; gap:8px; align-items:center; flex-shrink:0; }
+  /* 服务器清单分区标题：正在使用 / 可切换 两段式（正在使用的不给切换按钮） */
+  .srv-sec { font-size:12px; color:#6b7280; font-weight:600; letter-spacing:.02em; margin:12px 0 2px; }
+  .srv-sec:first-child { margin-top:2px; }
   /* 到期锁定演示：非保留服务器转只读 + 灰锁图标 */
   .srv.locked .flag { filter:grayscale(1); opacity:.5; }
   .srv.locked .meta { opacity:.55; }
@@ -580,9 +583,9 @@ window.addEventListener('keydown',function(e){
             <div class="flag" style="background:#f3f4f6;color:#6b7280">+</div>
             <div class="meta">
               <b>添加服务器</b>
-              <div class="mline">SSH 密码 / 密钥 / AccessKey 三种方式均可</div>
+              <div class="mline">在本页弹窗里填 SSH 信息直接部署，成功后自动加入清单，不用跳页</div>
             </div>
-            <div class="ops"><button class="btn sm" onclick="nav('network')">去添加</button></div>
+            <div class="ops"><button class="btn sm" onclick="openAddModal()">添加服务器</button></div>
           </div>
           <div class="lock-note"><svg class="i sm" style="color:#b45309"><use href="#i-lock"/></svg><b>订阅权益说明</b>：试用/订阅期间服务器数量不限；到期后仅保留 1 台可切换，其余进入只读（配置不删除，续费即恢复）。免费版不提供「一键切换」与「批量体检」。<a href="javascript:void(0)" id="lockDemoLink" onclick="toggleExpireDemo()" style="margin-left:8px;color:#0f766e">▶ 演示到期锁定状态</a></div>
         </div>
@@ -1055,6 +1058,34 @@ window.addEventListener('keydown',function(e){
     <div class="modal-foot">
       <button class="btn ghost sm" onclick="closeModal('dryModal')">关闭</button>
       <button class="btn sm" onclick="closeModal('dryModal');startDeploy()">开始正式部署</button>
+    </div>
+  </div>
+</div>
+
+<!-- 添加服务器（「代理服务器」页弹窗入口）：
+     部署链路、后端调用与 deploy:event 事件流和网络配置页完全共用，
+     只是渲染目标换成本弹窗内的 mDep* 元素（见 startDeploy('modal')）。
+     成功后自动存入清单并关闭，不再把用户踢到别的页面。 -->
+<div class="modal-mask" id="addSrvModal">
+  <div class="modal" style="width:560px">
+    <div class="modal-head">添加服务器</div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label>服务器 IP</label><input id="mDepHost" placeholder="例如 1.2.3.4 或 example.com"></div>
+        <div class="field"><label>SSH 端口</label><input id="mDepPort" value="22"></div>
+        <div class="field"><label>账号</label><input id="mDepUser" value="root"></div>
+        <div class="field"><label>密码 / 私钥</label><input id="mDepPass" type="password" placeholder="服务器登录密码"></div>
+      </div>
+      <div id="mDepCard" style="display:none">
+        <h3 style="margin-top:14px">部署进度</h3>
+        <div class="steps" id="mDepSteps"></div>
+        <div class="mini-note" id="mDepLog" style="display:none;margin-top:10px;max-height:132px;overflow-y:auto;white-space:pre-wrap;word-break:break-all"></div>
+      </div>
+      <div class="mini-note" style="margin-top:9px">部署会 SSH 登录服务器安装代理服务端（约 1~2 分钟）；本机系统代理只在点「连接」时才会改动。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost sm" onclick="closeModal('addSrvModal')">关闭</button>
+      <button class="btn" id="mDepBtn" onclick="startDeploy('modal')">开始部署</button>
     </div>
   </div>
 </div>
@@ -1749,46 +1780,54 @@ window.addEventListener('keydown',function(e){
     { id: 'codex',   name: '安装 Codex', desc: '' }
   ];
   var deploying = false;
-  function depRow(st, n, name, desc) {
+  /* 部署有两个入口：网络配置页（'page'）和服务器页弹窗（'modal'）。
+     depScope 记录本次部署渲染到哪一套 DOM（页内 dep* / 弹窗内 mDep*），
+     deploy:event 事件流按它路由，两处共用同一条后端链路。 */
+  var depScope = 'page';
+  function depEl(field) { return (depScope === 'modal' ? 'm' : '') + 'Dep' + field; }
+  function depRow(scope, st, n, name, desc) {
     var cls = st === 'done' ? 'done' : (st === 'fail' ? 'fail' : (st === 'run' ? 'run' : ''));
     var icon = st === 'done' ? '✓' : (st === 'fail' ? '✕' : String(n));
-    return '<div class="step ' + cls + '" id="dep-' + name + '"><div class="n">' + icon + '</div><div><b>' + DEP_STEPS[n - 1].name + '</b>'
+    return '<div class="step ' + cls + '" id="' + scope + '-dep-' + name + '"><div class="n">' + icon + '</div><div><b>' + DEP_STEPS[n - 1].name + '</b>'
       + '<br><span style="font-size:12px;color:#6b7280">' + (desc || '等待执行…') + '</span></div></div>';
   }
-  function depSet(stepId, st, msg) {
-    var row = document.getElementById('dep-' + stepId);
+  function depSet(scope, stepId, st, msg) {
+    var row = document.getElementById(scope + '-dep-' + stepId);
     if (!row) return;
     var idx = DEP_STEPS.findIndex(function(s){ return s.id === stepId; });
-    row.outerHTML = depRow(st, idx + 1, stepId, msg);
+    row.outerHTML = depRow(scope, st, idx + 1, stepId, msg);
   }
   window.onDeployEvent = function (ev) {
     if (ev.kind === 'log') {
-      var log = document.getElementById('depLog');
+      var log = document.getElementById(depEl('Log'));
       log.style.display = 'block';
       log.textContent += ev.msg + '\n';
       log.scrollTop = log.scrollHeight;
       return;
     }
     var st = ev.kind === 'step_start' ? 'run' : (ev.kind === 'step_done' ? 'done' : 'fail');
-    depSet(ev.step, st, ev.msg + (ev.detail ? ' — ' + ev.detail : ''));
+    depSet(depScope, ev.step, st, ev.msg + (ev.detail ? ' — ' + ev.detail : ''));
   };
-  function startDeploy(){
+  function startDeploy(scope){
+    scope = scope || 'page';
     if (deploying) return;
     if (!DukouAPI.hasBackend()) { toast('后端未就绪：请在桌面 App 内使用部署功能'); return; }
-    var host = document.getElementById('depHost').value.trim();
-    var port = parseInt(document.getElementById('depPort').value, 10) || 22;
-    var user = document.getElementById('depUser').value.trim() || 'root';
-    var pass = document.getElementById('depPass').value;
+    depScope = scope;
+    var host = document.getElementById(depEl('Host')).value.trim();
+    var port = parseInt(document.getElementById(depEl('Port')).value, 10) || 22;
+    var user = document.getElementById(depEl('User')).value.trim() || 'root';
+    var pass = document.getElementById(depEl('Pass')).value;
     if (!host) { toast('请先填写服务器 IP / 域名'); return; }
     if (!pass) { toast('请填写服务器密码（或先在服务器上配好密钥）'); return; }
     deploying = true;
-    var btn = document.getElementById('depBtn');
+    var btn = document.getElementById(depEl('Btn'));
     btn.disabled = true; btn.textContent = '部署中…';
-    document.getElementById('depCard').style.display = '';
-    document.getElementById('depLog').style.display = 'none';
-    document.getElementById('depLog').textContent = '';
-    document.getElementById('depSteps').innerHTML =
-      depRow('', 1, 'connect') + depRow('', 2, 'server') + depRow('', 3, 'client') + depRow('', 4, 'codex');
+    document.getElementById(depEl('Card')).style.display = '';
+    var logEl = document.getElementById(depEl('Log'));
+    logEl.style.display = 'none';
+    logEl.textContent = '';
+    document.getElementById(depEl('Steps')).innerHTML =
+      depRow(scope, '', 1, 'connect') + depRow(scope, '', 2, 'server') + depRow(scope, '', 3, 'client') + depRow(scope, '', 4, 'codex');
 
     DukouAPI.deploy({ serverHost: host, sshPort: port, sshUser: user, sshPassword: pass,
                       sshKey: '', localSudo: '', installCodex: false })
@@ -1804,7 +1843,8 @@ window.addEventListener('keydown',function(e){
           .then(function () {
             renderServers();
             refreshConn();
-            toast('服务器已保存：' + host + '（清单见「代理服务器」页）');
+            toast('服务器已保存：' + host + '（清单见下方）');
+            if (scope === 'modal') setTimeout(function(){ closeModal('addSrvModal'); }, 1100);
           })
           .catch(function (e) { toast('部署成功，但存入清单失败：' + e.message); });
       })
@@ -1854,6 +1894,47 @@ window.addEventListener('keydown',function(e){
     error:   '<span class="pill err">异常</span>',
     locked:  '<span class="pill off">已锁定</span>'
   };
+  /* 单台服务器行。两段式布局的关键规则：
+     「使用中」的服务器不给「切到此线路」按钮——已经连着它，
+     再给一个切到自己的按钮是自相矛盾；切换按钮只出现在备用线路行。 */
+  function srvRowHtml(s, i) {
+    var keepId = lockKeepId(_servers);
+    var locked = expiredDemo && s.id !== keepId;
+    var pill = locked ? SRV_PILL.locked : (SRV_PILL[s.status] || SRV_PILL.standby);
+    var flag = s.flag ? '<div class="flag">' + s.flag + '</div>'
+                      : '<div class="flag" style="background:#f3f4f6;color:#6b7280">·</div>';
+    var isActive = s.status === 'active';
+    var switchBtn = (isActive || locked)
+      ? '<button class="btn sm" disabled title="' + (isActive ? '当前正在使用这条线路' : '订阅已到期：仅保留 1 台可切换，续费后恢复') + '">切到此线路</button>'
+      : '<button class="btn sm" onclick="switchTo(' + i + ')">切到此线路</button>';
+    var ops = locked
+      ? switchBtn
+        + '<button class="btn sm ghost" disabled>服务器体检</button>'
+        + '<button class="btn sm ghost" disabled>编辑</button>'
+        + '<button class="btn sm ghost" disabled>删除</button>'
+      : (isActive ? '' : switchBtn)
+        + '<button class="btn sm ghost" onclick="serverCheck(\'' + s.id + '\',\'' + (s.name || '').replace(/'/g, "\\'") + '\')">服务器体检</button>'
+        + '<button class="btn sm ghost" onclick="openEdit(' + i + ')">编辑</button>'
+        + '<button class="btn sm ghost" style="color:#b91c1c" onclick="removeServer(' + i + ')">删除</button>';
+    return '<div class="srv lockable' + (locked ? ' locked' : '') + '">' + flag
+      + '<div class="meta"><b>' + s.name + '</b> ' + pill
+      + '<div class="mline">' + s.host + ' · SSH ' + s.sshPort + ' · ' + s.sshUser
+      + (s.lastCheck ? ' · 最近检查 ' + s.lastCheck : '') + '</div></div>'
+      + '<div class="ops">' + ops + '</div></div>';
+  }
+  /* 添加服务器弹窗：本页直接填 SSH 信息部署，不再跳去网络配置页 */
+  function openAddModal(){
+    if (deploying) { toast('正在部署中，请等这次部署结束再添加'); return; }
+    document.getElementById('mDepHost').value = '';
+    document.getElementById('mDepPort').value = '22';
+    document.getElementById('mDepUser').value = 'root';
+    document.getElementById('mDepPass').value = '';
+    document.getElementById('mDepCard').style.display = 'none';
+    document.getElementById('mDepSteps').innerHTML = '';
+    document.getElementById('mDepLog').style.display = 'none';
+    document.getElementById('mDepLog').textContent = '';
+    openModal('addSrvModal');
+  }
   function renderServers(){
     var box = document.getElementById('srvList');
     if (!DukouAPI.hasBackend()) {
@@ -1870,31 +1951,22 @@ window.addEventListener('keydown',function(e){
       _servers = list || [];
       document.getElementById('srvCount').textContent = _servers.length;
       if (!_servers.length) {
-        box.innerHTML = '<div class="mini-note" style="padding:10px 0">还没有服务器——去「网络配置」页部署第一台，完成后会自动存到这里。</div>';
+        box.innerHTML = '<div class="mini-note" style="padding:10px 0">还没有服务器——点下方「添加服务器」直接在本页部署，完成后会自动存到这里。</div>';
         refreshHomeQuick();
         return;
       }
-      var keepId = lockKeepId(_servers);
-      box.innerHTML = _servers.map(function (s, i) {
-        var locked = expiredDemo && s.id !== keepId;
-        var pill = locked ? SRV_PILL.locked : (SRV_PILL[s.status] || SRV_PILL.standby);
-        var flag = s.flag ? '<div class="flag">' + s.flag + '</div>'
-                          : '<div class="flag" style="background:#f3f4f6;color:#6b7280">·</div>';
-        var ops = locked
-          ? '<button class="btn sm" disabled title="订阅已到期：仅保留 1 台可切换，续费后恢复">切到此线路</button>'
-            + '<button class="btn sm ghost" disabled>服务器体检</button>'
-            + '<button class="btn sm ghost" disabled>编辑</button>'
-            + '<button class="btn sm ghost" disabled>删除</button>'
-          : '<button class="btn sm" onclick="switchTo(' + i + ')">切到此线路</button>'
-            + '<button class="btn sm ghost" onclick="serverCheck(\'' + s.id + '\',\'' + (s.name || '').replace(/'/g, "\\'") + '\')">服务器体检</button>'
-            + '<button class="btn sm ghost" onclick="openEdit(' + i + ')">编辑</button>'
-            + '<button class="btn sm ghost" style="color:#b91c1c" onclick="removeServer(' + i + ')">删除</button>';
-        return '<div class="srv lockable' + (locked ? ' locked' : '') + '">' + flag
-          + '<div class="meta"><b>' + s.name + '</b> ' + pill
-          + '<div class="mline">' + s.host + ' · SSH ' + s.sshPort + ' · ' + s.sshUser
-          + (s.lastCheck ? ' · 最近检查 ' + s.lastCheck : '') + '</div></div>'
-          + '<div class="ops">' + ops + '</div></div>';
-      }).join('');
+      var rows = _servers.map(function (s, i) { return { s: s, html: srvRowHtml(s, i) }; });
+      var actRows = rows.filter(function (r) { return r.s.status === 'active'; });
+      var restRows = rows.filter(function (r) { return r.s.status !== 'active'; });
+      box.innerHTML = ''
+        + '<div class="srv-sec">正在使用' + (actRows.length ? '' : '（当前未连接）') + '</div>'
+        + (actRows.length
+            ? actRows.map(function (r) { return r.html; }).join('')
+            : '<div class="mini-note" style="padding:2px 0 6px">在下方任选一台点「切到此线路」即可上线。</div>')
+        + '<div class="srv-sec">可切换的服务器（' + restRows.length + '）</div>'
+        + (restRows.length
+            ? restRows.map(function (r) { return r.html; }).join('')
+            : '<div class="mini-note" style="padding:2px 0 6px">还没有备用线路——添加一台后即可一键切换出口。</div>');
       refreshHomeQuick();
     }).catch(function (e) {
       box.innerHTML = '<div class="mini-note" style="padding:10px 0;color:#b91c1c">清单读取失败：' + (e.message || e) + '</div>';
