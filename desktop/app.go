@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
 	"strings"
 	"sync"
@@ -17,6 +16,7 @@ import (
 	"github.com/yijiuba/dukou/internal/app"
 	"github.com/yijiuba/dukou/internal/deploy"
 	"github.com/yijiuba/dukou/internal/store"
+	"github.com/yijiuba/dukou/internal/winfile"
 )
 
 // App 是暴露给前端的对象。
@@ -173,20 +173,12 @@ func (a *App) ConfigDir() string {
 // ExportBackup 弹「另存为」对话框后导出 .dukoubak。
 // cancelled=true 表示用户主动取消，前端不应提示错误。
 func (a *App) ExportBackup(password string) (store.BackupSummary, bool, error) {
-	if a.ctx == nil {
-		return store.BackupSummary{}, false, errors.New("应用尚未就绪，请重启后再试")
-	}
-	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		Title:           "保存 dukou 备份",
-		DefaultFilename: a.svc.SuggestedBackupName(),
-		Filters: []runtime.FileFilter{
-			{DisplayName: "dukou 备份包 (*.dukoubak)", Pattern: "*.dukoubak"},
-		},
-	})
+	path, cancelled, err := winfile.SaveFileDialog("保存 dukou 备份",
+		a.svc.SuggestedBackupName(), "dukou 备份包 (*.dukoubak)|*.dukoubak")
 	if err != nil {
-		return store.BackupSummary{}, false, fmt.Errorf("打开保存对话框失败：%v", err)
+		return store.BackupSummary{}, false, err
 	}
-	if path == "" {
+	if cancelled || path == "" {
 		return store.BackupSummary{}, true, nil
 	}
 	sum, err := a.svc.ExportBackup(path, password)
@@ -195,19 +187,12 @@ func (a *App) ExportBackup(password string) (store.BackupSummary, bool, error) {
 
 // ImportBackup 弹「打开」对话框后导入 .dukoubak。
 func (a *App) ImportBackup(password string) (store.BackupSummary, bool, error) {
-	if a.ctx == nil {
-		return store.BackupSummary{}, false, errors.New("应用尚未就绪，请重启后再试")
-	}
-	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "选择 dukou 备份文件",
-		Filters: []runtime.FileFilter{
-			{DisplayName: "dukou 备份包 (*.dukoubak)", Pattern: "*.dukoubak"},
-		},
-	})
+	path, cancelled, err := winfile.OpenFileDialog("选择 dukou 备份文件",
+		"dukou 备份包 (*.dukoubak)|*.dukoubak")
 	if err != nil {
-		return store.BackupSummary{}, false, fmt.Errorf("打开文件对话框失败：%v", err)
+		return store.BackupSummary{}, false, err
 	}
-	if path == "" {
+	if cancelled || path == "" {
 		return store.BackupSummary{}, true, nil
 	}
 	sum, err := a.svc.ImportBackup(path, password)
@@ -216,22 +201,14 @@ func (a *App) ImportBackup(password string) (store.BackupSummary, bool, error) {
 
 // ExportServers 弹「另存为」对话框后导出脱敏清单（csv / json）。
 func (a *App) ExportServers(format string) (int, bool, error) {
-	if a.ctx == nil {
-		return 0, false, errors.New("应用尚未就绪，请重启后再试")
-	}
 	ext := strings.ToLower(strings.TrimPrefix(format, "."))
 	name := "dukou-servers-" + time.Now().Format("20060102") + "." + ext
-	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		Title:           "导出服务器清单",
-		DefaultFilename: name,
-		Filters: []runtime.FileFilter{
-			{DisplayName: strings.ToUpper(ext) + " 文件", Pattern: "*." + ext},
-		},
-	})
+	path, cancelled, err := winfile.SaveFileDialog("导出服务器清单", name,
+		strings.ToUpper(ext)+" 文件|*."+ext)
 	if err != nil {
-		return 0, false, fmt.Errorf("打开保存对话框失败：%v", err)
+		return 0, false, err
 	}
-	if path == "" {
+	if cancelled || path == "" {
 		return 0, true, nil
 	}
 	n, err := a.svc.ExportServers(path, ext)
