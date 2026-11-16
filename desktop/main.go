@@ -63,6 +63,7 @@ func main() {
 		},
 		OnStartup:     a.startup,
 		OnBeforeClose: a.onBeforeClose,
+		OnShutdown:    a.shutdown,
 		Bind:          []interface{}{a},
 	})
 	if err != nil {

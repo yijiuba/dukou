@@ -4,10 +4,16 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/url"
+	"strings"
 	"sync"
+	"time"
 
 	"fyne.io/systray"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/yijiuba/dukou/internal/account"
 	"github.com/yijiuba/dukou/internal/app"
 	"github.com/yijiuba/dukou/internal/deploy"
 	"github.com/yijiuba/dukou/internal/store"
@@ -38,6 +44,13 @@ func (a *App) startup(ctx context.Context) {
 	a.svc.SetEmitter(func(event string, data interface{}) {
 		runtime.EventsEmit(ctx, event, data)
 	})
+}
+
+// shutdown Wails 退出回调：断开代理（还原系统代理）并释放资源。
+// 不接这个回调的后果是：用户从托盘退出后，系统代理还指着一个已经关掉的
+// 127.0.0.1:7890，浏览器直接全站打不开——最典型的"卸载级差评"来源。
+func (a *App) shutdown(ctx context.Context) {
+	a.svc.Shutdown()
 }
 
 // ── 转发 internal/app.Service（§5.1 契约方法） ──────────────────────────
@@ -103,9 +116,147 @@ func (a *App) AppInfo() (app.AppInfo, error) {
 	return a.svc.AppInfo()
 }
 
+// ── 账号与订阅（v0.3，契约 `账号服务接口契约-v1.0`）─────────────────────
+
+// SessionInfo 当前登录态（启动时先拉一次，决定是否显示登录页）。
+func (a *App) SessionInfo() (app.SessionInfo, error) {
+	return a.svc.SessionInfo()
+}
+
+// LoginRequestCode 发送邮箱验证码（E1）。返回的 verificationId 前端需要保存。
+func (a *App) LoginRequestCode(email string) (account.CodeSent, error) {
+	return a.svc.LoginRequestCode(email)
+}
+
+// LoginVerify 校验验证码完成登录/注册（E2，注册登录合一）。
+func (a *App) LoginVerify(email, verificationID string, isExisting bool, code string) (app.LoginResult, error) {
+	return a.svc.LoginVerify(email, verificationID, isExisting, code)
+}
+
+// Logout 退出登录。
+func (a *App) Logout() error {
+	return a.svc.Logout()
+}
+
+// Account 订阅状态（E4）。
+func (a *App) Account() (account.Account, error) {
+	return a.svc.Account()
+}
+
+// Plans 套餐列表（E6）。
+func (a *App) Plans() ([]account.Plan, error) {
+	return a.svc.Plans()
+}
+
+// ClaimTrial 领取试用（E5）。
+func (a *App) ClaimTrial() (account.TrialResult, error) {
+	return a.svc.ClaimTrial()
+}
+
+// Orders 我的订单（E7）。
+func (a *App) Orders() ([]account.Order, error) {
+	return a.svc.Orders()
+}
+
+// Referral 推广信息（E8）。
+func (a *App) Referral() (account.Referral, error) {
+	return a.svc.Referral()
+}
+
 // ConfigDir 返回配置目录（设置页展示用）。
 func (a *App) ConfigDir() string {
 	return a.svc.ConfigDir()
+}
+
+// ── 备份 / 导出 / 更新（§5.1 契约，v0.2 M3） ───────────────────────────
+
+// ExportBackup 弹「另存为」对话框后导出 .dukoubak。
+// cancelled=true 表示用户主动取消，前端不应提示错误。
+func (a *App) ExportBackup(password string) (store.BackupSummary, bool, error) {
+	if a.ctx == nil {
+		return store.BackupSummary{}, false, errors.New("应用尚未就绪，请重启后再试")
+	}
+	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:           "保存 dukou 备份",
+		DefaultFilename: a.svc.SuggestedBackupName(),
+		Filters: []runtime.FileFilter{
+			{DisplayName: "dukou 备份包 (*.dukoubak)", Pattern: "*.dukoubak"},
+		},
+	})
+	if err != nil {
+		return store.BackupSummary{}, false, fmt.Errorf("打开保存对话框失败：%v", err)
+	}
+	if path == "" {
+		return store.BackupSummary{}, true, nil
+	}
+	sum, err := a.svc.ExportBackup(path, password)
+	return sum, false, err
+}
+
+// ImportBackup 弹「打开」对话框后导入 .dukoubak。
+func (a *App) ImportBackup(password string) (store.BackupSummary, bool, error) {
+	if a.ctx == nil {
+		return store.BackupSummary{}, false, errors.New("应用尚未就绪，请重启后再试")
+	}
+	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "选择 dukou 备份文件",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "dukou 备份包 (*.dukoubak)", Pattern: "*.dukoubak"},
+		},
+	})
+	if err != nil {
+		return store.BackupSummary{}, false, fmt.Errorf("打开文件对话框失败：%v", err)
+	}
+	if path == "" {
+		return store.BackupSummary{}, true, nil
+	}
+	sum, err := a.svc.ImportBackup(path, password)
+	return sum, false, err
+}
+
+// ExportServers 弹「另存为」对话框后导出脱敏清单（csv / json）。
+func (a *App) ExportServers(format string) (int, bool, error) {
+	if a.ctx == nil {
+		return 0, false, errors.New("应用尚未就绪，请重启后再试")
+	}
+	ext := strings.ToLower(strings.TrimPrefix(format, "."))
+	name := "dukou-servers-" + time.Now().Format("20060102") + "." + ext
+	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:           "导出服务器清单",
+		DefaultFilename: name,
+		Filters: []runtime.FileFilter{
+			{DisplayName: strings.ToUpper(ext) + " 文件", Pattern: "*." + ext},
+		},
+	})
+	if err != nil {
+		return 0, false, fmt.Errorf("打开保存对话框失败：%v", err)
+	}
+	if path == "" {
+		return 0, true, nil
+	}
+	n, err := a.svc.ExportServers(path, ext)
+	return n, false, err
+}
+
+// CheckUpdate 读 GitHub Releases 最新正式版并与本地版本比较。
+func (a *App) CheckUpdate() (app.UpdateInfo, error) {
+	return a.svc.CheckUpdate()
+}
+
+// OpenExternal 一律走系统浏览器打开 HTTP(S) 链接。
+//
+// 只放行 http/https：前端拼出来的地址若被注入 javascript: 或 file://，
+// 直接交给系统打开等于把本机文件系统交出去。
+func (a *App) OpenExternal(link string) error {
+	u, err := url.Parse(strings.TrimSpace(link))
+	if err != nil {
+		return errors.New("链接格式不正确")
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return errors.New("只能打开 http / https 链接")
+	}
+	runtime.BrowserOpenURL(a.ctx, u.String())
+	return nil
 }
 
 // ── 窗口 / 托盘（GUI 专属，不进服务层） ─────────────────────────────────
