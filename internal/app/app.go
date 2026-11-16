@@ -34,6 +34,10 @@ type Service struct {
 	// 心跳协程的停止信号（有效在线累计，契约 E9）。
 	hbMu   sync.Mutex
 	hbStop chan struct{}
+
+	// 本机代理驱动。nil 表示用真实实现（internal/proxy）；
+	// 单测注入 fake 以覆盖切换线路的顺序与回滚，见 proxy_driver.go。
+	pdrv proxyDriver
 }
 
 // New 创建服务并打开本地存储。configDir 为空时用系统默认用户配置目录。

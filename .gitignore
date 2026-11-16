@@ -23,3 +23,6 @@ coverage.html
 # 本地临时文件
 /tmp/
 *.log
+
+# 真机验收截图（PrintWindow 产物，几 MB 一张，不入库）
+/.verify/

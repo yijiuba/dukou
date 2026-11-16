@@ -17,7 +17,7 @@ type Status = proxy.Status
 // 而不是读一份可能过期的落盘记录：进程被强杀、系统代理被别的软件改走，
 // 这些都只有现场看才知道。
 func (s *Service) ProxyStatus() (Status, error) {
-	return proxy.Current(s.proxyOptions())
+	return s.drv().Current()
 }
 
 // proxyOptions 组装本机代理的运行参数。
