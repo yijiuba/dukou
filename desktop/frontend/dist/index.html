@@ -1789,7 +1789,9 @@ window.addEventListener('keydown',function(e){
     { id: 'connect', name: '连接服务器', desc: '' },
     { id: 'server',  name: '配置服务端', desc: '' },
     { id: 'client',  name: '配置本机',   desc: '' },
-    { id: 'codex',   name: '安装 Codex', desc: '' }
+    /* 第 4 步是完成指示，不是真实步骤（桌面部署不装 Codex，AI 工具在「AI 工具」页管理），
+       部署成功后由前端点亮，提示用户接下来能做什么。 */
+    { id: 'codex',   name: '配置成功',   desc: '完成上一步后点亮' }
   ];
   var deploying = false;
   /* 部署有两个入口：网络配置页（'page'）和服务器页弹窗（'modal'）。
@@ -1800,8 +1802,9 @@ window.addEventListener('keydown',function(e){
   function depRow(scope, st, n, name, desc) {
     var cls = st === 'done' ? 'done' : (st === 'fail' ? 'fail' : (st === 'run' ? 'run' : ''));
     var icon = st === 'done' ? '✓' : (st === 'fail' ? '✕' : String(n));
+    var hint = desc || DEP_STEPS[n - 1].desc || '等待执行…';
     return '<div class="step ' + cls + '" id="' + scope + '-dep-' + name + '"><div class="n">' + icon + '</div><div><b>' + DEP_STEPS[n - 1].name + '</b>'
-      + '<br><span style="font-size:12px;color:#6b7280">' + (desc || '等待执行…') + '</span></div></div>';
+      + '<br><span style="font-size:12px;color:#6b7280">' + hint + '</span></div></div>';
   }
   function depSet(scope, stepId, st, msg) {
     var row = document.getElementById(scope + '-dep-' + stepId);
@@ -1904,12 +1907,14 @@ window.addEventListener('keydown',function(e){
       depRow('modal', '', 1, 'connect') + depRow('modal', '', 2, 'server') + depRow('modal', '', 3, 'client') + depRow('modal', '', 4, 'codex');
     DukouAPI.deployServer(_deploySrvId, {})
       .then(function (res) {
+        depSet(depScope, 'codex', 'done', '全部完成 — 可以安装 AI 工具，或回首页畅游网络吧');
         toast('部署完成！出口 IP ' + (res.egressIp || '（验证中）') + '，服务器已转为备用，可切换');
         renderServers();
-        setTimeout(function(){ closeModal('addSrvModal'); }, 1100);
+        setTimeout(function(){ closeModal('addSrvModal'); }, 2200);
       })
       .catch(function (e) {
         toast(e.message || ('部署未完成：' + e));
+        btn.textContent = '重试部署'; /* 失败后按钮重新出现，此时它是重试入口 */
       })
       .then(function () {
         deploying = false;
@@ -1954,10 +1959,11 @@ window.addEventListener('keydown',function(e){
                              proxyPort: 7890, serverPort: res.port || 8443,
                              sshPassword: pass, proxyPassword: res.password || '', sshKey: '' })
           .then(function () {
+            depSet(depScope, 'codex', 'done', '全部完成 — 可以安装 AI 工具，或回首页畅游网络吧');
             renderServers();
             refreshConn();
             toast('服务器已保存：' + host + '（清单见下方）');
-            if (scope === 'modal') setTimeout(function(){ closeModal('addSrvModal'); }, 1100);
+            if (scope === 'modal') setTimeout(function(){ closeModal('addSrvModal'); }, 2200);
           })
           .catch(function (e) { toast('部署成功，但存入清单失败：' + e.message); });
       })
