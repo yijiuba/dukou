@@ -45,8 +45,10 @@ func setupServer(ctx context.Context, ssh *remote.SSH, info remote.OSInfo, req R
 		own, _ := ssh.Run(fmt.Sprintf(
 			`[ -f /etc/systemd/system/%s.service ] && echo own || echo other`, unitName))
 		if strings.TrimSpace(own) != "own" {
-			return fmt.Errorf("端口 %d 已被占用，占用者不是本工具。请换一个端口"+
-				"（高级设置里改），或先停掉那个程序：ss -lntp | grep :%d",
+			// 注意：界面目前没有「改端口」入口（M3 收尾时确认过），
+			// 报错不能指向一个不存在的入口，只给用户真实可行的两条路。
+			return fmt.Errorf("端口 %d 已被占用，占用者不是本工具。请先 SSH 登录服务器停掉那个程序"+
+				"（查看占用者：ss -lntp | grep :%d），或联系我确认端口后再部署",
 				req.Port, req.Port)
 		}
 		emit(Event{Kind: KindLog, Step: step, Msg: fmt.Sprintf(
