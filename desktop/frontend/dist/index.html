@@ -631,45 +631,42 @@ window.addEventListener('keydown',function(e){
       <!-- AI 工具 -->
       <div class="page" id="page-ai">
         <div class="page-head"><h2>AI 工具</h2>
-          <div class="sub">一键装好 Codex / Claude Code，自动检测你的系统环境与安装状态</div></div>
+          <div class="sub">Codex / Claude Code 的检测、安装、启动、卸载都在这里，状态全部读本机真实环境</div></div>
       <div class="warn-bar" id="aiWarn"><svg class="i sm" style="color:#b45309"><use href="#i-alert"/></svg>当前未连接代理，下载安装与登录海外平台需要先回首页点「连接」</div>
         <div class="card tool">
           <div class="tool-icon" style="background:#111827">CX</div>
           <div class="tool-info">
-            <h4>Codex <span class="tag">OpenAI</span><span class="tag" style="background:#ecfdf5;color:#047857">已安装 v0.1.4</span></h4>
+            <h4>Codex <span class="tag">OpenAI</span><span class="tag" id="aiBadge-codex">未检测</span></h4>
             <div class="tool-desc">OpenAI 官方终端编程助手：能读写项目文件、执行命令、跑测试。适合在服务器上改脚本、排查故障；复杂重构建议拆成小步交给它。</div>
-            <div class="env-line">已检测：Ubuntu 24.04 · x86_64 · Node v22.11 ✓ · Codex 已安装 ✓ · 代理已连接 ✓</div>
+            <div class="env-line" id="aiEnv-codex">尚未检测本机环境</div>
           </div>
-          <div class="tool-side">
-            <div class="opt primary" onclick="openApp('Codex')">▶ 打开应用</div>
-            <div class="opt" onclick="openTutorial('Codex')"><svg class="i sm"><use href="#i-book"/></svg>操作教程</div>
-            <div class="tool-side-note">点开即进终端，无需重装</div>
+          <div class="tool-side" id="aiSide-codex">
+            <div class="opt disabled">安装 · 启动 · 卸载</div>
+            <div class="tool-side-note">v0.3 开放，v0.2 不代装</div>
           </div>
         </div>
         <div class="card tool">
           <div class="tool-icon" style="background:#d97706">CC</div>
           <div class="tool-info">
-            <h4>Claude Code <span class="tag">Anthropic</span><span class="tag">CLI</span></h4>
+            <h4>Claude Code <span class="tag">Anthropic</span><span class="tag">CLI</span><span class="tag" id="aiBadge-claude">未检测</span></h4>
             <div class="tool-desc">Anthropic 官方终端助手，长上下文是强项：适合整文件重构、代码审查、读大段日志。用法与 Codex 接近，可两个都装按任务切换。</div>
-            <div class="env-line">已检测：<b style="color:#6b7280">未安装</b> · 环境满足 ✓ · 需要 Node ≥ 18</div>
+            <div class="env-line" id="aiEnv-claude">尚未检测本机环境 · 需要 Node ≥ 18</div>
           </div>
-          <div class="tool-side">
-            <div class="opt primary" onclick="installTool('Claude Code')">CLI 版 · 一键安装</div>
-            <div class="opt" onclick="openTutorial('Claude Code')"><svg class="i sm"><use href="#i-book"/></svg>操作教程</div>
-            <div class="tool-side-note">与 Codex 可共存</div>
+          <div class="tool-side" id="aiSide-claude">
+            <div class="opt disabled">安装 · 启动 · 卸载</div>
+            <div class="tool-side-note">v0.3 开放，v0.2 不代装</div>
           </div>
         </div>
         <div class="card tool">
           <div class="tool-icon" style="background:#10a37f">GPT</div>
           <div class="tool-info">
-            <h4>ChatGPT <span class="tag">桌面 App</span><span class="tag" style="background:#ecfdf5;color:#047857">已安装 v1.2.0</span></h4>
+            <h4>ChatGPT <span class="tag">桌面 App</span><span class="tag">厂商分发</span></h4>
             <div class="tool-desc">官方桌面客户端：支持语音对话、传文件、截图提问，不用命令行也能用。适合日常问答、写文档、看报错截图。</div>
-            <div class="env-line">已检测：Windows 11 · 桌面版 v1.2.0 已安装 ✓ · 登录需代理</div>
+            <div class="env-line">桌面版由 OpenAI 自己分发，dukou 不代装、不改它；装好后登录需要代理已连接</div>
           </div>
           <div class="tool-side">
-            <div class="opt primary" onclick="openApp('ChatGPT 桌面版')">▶ 打开应用</div>
             <div class="opt" onclick="openTutorial('ChatGPT')"><svg class="i sm"><use href="#i-book"/></svg>操作教程</div>
-            <div class="tool-side-note">桌面 App 由厂商分发，不代装</div>
+            <div class="tool-side-note">不代装，只给教程</div>
           </div>
         </div>
         <div class="card tool">
@@ -1603,12 +1600,8 @@ window.addEventListener('keydown',function(e){
     }
     if(typeof fitHero==='function') setTimeout(fitHero,60);
   }
-  /* AI 工具：安装 / 打开 / 教程 */
-  function openApp(name){ toast('正在打开 '+name+'…（演示：正式版会拉起本机终端或应用窗口）'); }
-  function installTool(name){
-    toast('正在安装 '+name+'…（下载 → sha256 校验 → 写入 PATH）');
-    setTimeout(function(){ toast(name+' 安装完成：右侧按钮已换成「打开应用 / 操作教程」'); }, 1900);
-  }
+  /* AI 工具：v0.2 起安装/启动/卸载一律走真接口（见 js/20-api.js 的 aiTools），
+     不再有「toast 一下就当装好了」的演示实现。 */
   function openTutorial(name){
     document.getElementById('tutTitle').textContent=name+' 上手指南';
     openModal('tutModal');
