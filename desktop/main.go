@@ -4,12 +4,14 @@ package main
 
 import (
 	"embed"
+	"fmt"
 	"os"
 
 	"fyne.io/systray"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/yijiuba/dukou/internal/app"
 )
 
 // assets 内嵌前端。前端是纯静态 HTML，不需要 npm 构建，
@@ -31,14 +33,20 @@ func main() {
 		os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-zoom --disable-pinch")
 	}
 
-	app := NewApp()
+	// 服务层：打开本地存储（失败直接退出——没有清单/凭据库一切免谈）。
+	svc, err := app.New("")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "启动失败:", err.Error())
+		os.Exit(1)
+	}
+	a := NewApp(svc)
 
 	// R1（§十）：托盘先行启动，与 Wails 主循环共存。
 	// 退出路径：托盘"退出渡口" → runtime.Quit → wails.Run 返回 → systray 兜底清理。
-	startTray(app)
+	startTray(a)
 	defer systray.Quit()
 
-	err := wails.Run(&options.App{
+	err = wails.Run(&options.App{
 		Title:     "渡口 · 一键部署",
 		Width:     1180,
 		Height:    780,
@@ -47,9 +55,9 @@ func main() {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		OnStartup:     app.startup,
-		OnBeforeClose: app.onBeforeClose,
-		Bind:          []interface{}{app},
+		OnStartup:     a.startup,
+		OnBeforeClose: a.onBeforeClose,
+		Bind:          []interface{}{a},
 	})
 	if err != nil {
 		println("启动失败:", err.Error())

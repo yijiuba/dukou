@@ -8,27 +8,76 @@ import (
 
 	"fyne.io/systray"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/yijiuba/dukou/internal/app"
 	"github.com/yijiuba/dukou/internal/deploy"
+	"github.com/yijiuba/dukou/internal/store"
 )
 
 // App 是暴露给前端的对象。
 //
-// 这里刻意保持极薄：所有编排逻辑都在 internal/deploy 里，
-// 这样同一套逻辑将来给 CLI 或 Web 版复用，而界面只负责收集输入、显示进度。
+// §十二：app.go 薄——所有编排逻辑都在 internal/app.Service 里，这里只做转发。
+// 不用嵌入而是显式转发，是为了把绑定面收紧到 §5.1 契约清单，
+// Service 的生命周期方法（Startup/SetEmitter 等）不会漏到前端。
 type App struct {
+	svc *app.Service
+
 	ctx      context.Context
 	quitting bool
 	mu       sync.Mutex
 }
 
 // NewApp 创建应用实例。
-func NewApp() *App {
-	return &App{}
+func NewApp(svc *app.Service) *App {
+	return &App{svc: svc}
 }
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.svc.Startup(ctx)
+	// 服务层事件 → Wails 事件通道。事件名规范见 §5.2（deploy:event / proxy:status / ...）
+	a.svc.SetEmitter(func(event string, data interface{}) {
+		runtime.EventsEmit(ctx, event, data)
+	})
 }
+
+// ── 转发 internal/app.Service（§5.1 契约方法） ──────────────────────────
+
+// Deploy 执行完整部署流程。进度经服务层事件推给前端，前端不需要轮询。
+func (a *App) Deploy(req deploy.Request) (deploy.Result, error) {
+	return a.svc.Deploy(req)
+}
+
+// ListServers 返回服务器清单（不含机密字段）。
+func (a *App) ListServers() ([]store.Server, error) {
+	return a.svc.ListServers()
+}
+
+// AddServer 新增服务器。密码/私钥只进加密库，不回显。
+func (a *App) AddServer(in store.ServerInput) (store.Server, error) {
+	return a.svc.AddServer(in)
+}
+
+// UpdateServer 编辑服务器。SSHPassword/SSHKey 留空表示保持原凭据。
+func (a *App) UpdateServer(id string, in store.ServerInput) (store.Server, error) {
+	return a.svc.UpdateServer(id, in)
+}
+
+// RemoveServer 删除服务器（含加密凭据）。
+func (a *App) RemoveServer(id string) error {
+	return a.svc.RemoveServer(id)
+}
+
+// ProxyStatus 前端启动时先拉一次连接状态。
+func (a *App) ProxyStatus() (app.Status, error) {
+	return a.svc.ProxyStatus()
+}
+
+// ConfigDir 返回配置目录（设置页展示用）。
+func (a *App) ConfigDir() string {
+	return a.svc.ConfigDir()
+}
+
+// ── 窗口 / 托盘（GUI 专属，不进服务层） ─────────────────────────────────
 
 // onBeforeClose 拦截窗口关闭：点 X 不退出，隐藏到托盘。
 // 返回 true 表示"阻止默认关闭行为"。
@@ -71,13 +120,4 @@ func (a *App) quitApp() {
 		systray.Quit() // 先收托盘，再让 Wails 退出
 		runtime.Quit(a.ctx)
 	}
-}
-
-// Deploy 执行完整部署流程。
-// 进度通过事件推给前端，前端不需要轮询。
-func (a *App) Deploy(req deploy.Request) (deploy.Result, error) {
-	emit := func(ev deploy.Event) {
-		runtime.EventsEmit(a.ctx, "deploy:event", ev)
-	}
-	return deploy.Run(a.ctx, req, emit)
 }
