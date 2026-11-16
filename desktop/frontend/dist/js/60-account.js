@@ -212,6 +212,17 @@
   /* ── "我的"页渲染（就地填充既有节点，不新增结构） ───────── */
 
   function renderMe() {
+    /* 整段包一层 try/catch：这是往别人写的页面上注入内容，
+       index.html 结构随时可能被并行会话调整。渲染失败宁可保持原样，
+       也绝不能让异常冒泡影响页面其它功能。 */
+    try {
+      renderMeInner();
+    } catch (e) {
+      if (window.console) console.warn('[account] 渲染失败，保持原页面：', e);
+    }
+  }
+
+  function renderMeInner() {
     var page = document.getElementById('page-me');
     if (!page) return;
     var head = $('.me-head', page);
