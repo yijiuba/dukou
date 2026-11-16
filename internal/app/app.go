@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/yijiuba/dukou/internal/account"
 	"github.com/yijiuba/dukou/internal/store"
 )
 
@@ -25,6 +26,14 @@ type Service struct {
 	ctx      context.Context
 	store    *store.Store
 	emit     EmitFunc
+
+	// 账号服务客户端（懒加载单例）。token 从加密库恢复，见 account.go。
+	muAccount sync.Mutex
+	acct      *account.Client
+
+	// 心跳协程的停止信号（有效在线累计，契约 E9）。
+	hbMu   sync.Mutex
+	hbStop chan struct{}
 }
 
 // New 创建服务并打开本地存储。configDir 为空时用系统默认用户配置目录。
@@ -54,7 +63,15 @@ func (s *Service) SetEmitter(fn EmitFunc) {
 }
 
 // Shutdown 释放资源。
+//
+// 退出前先断开代理：正常退出若把系统代理留在一个已经死掉的端口上，
+// 用户关掉 App 后浏览器直接上不了网——这比"崩溃残留"更常发生，
+// 也更容易被误判成"这软件有毒"。
 func (s *Service) Shutdown() {
+	s.stopHeartbeat()
+	if st, err := s.ProxyStatus(); err == nil && st.Connected {
+		_ = s.Disconnect()
+	}
 	s.ctx = nil
 }
 

@@ -30,6 +30,9 @@ type secretEntry struct {
 	// 它和 SSH 密码是两套东西：SSH 密码用于装服务端，
 	// 代理密码用于日常连接。连接时不碰 SSH，只读这一项。
 	Proxy string `json:"proxy,omitempty"`
+	// Session 是账号服务登录态（access/refresh token 的 JSON）。
+	// 与服务器凭据共用同一个加密库，条目 id 固定为 accountSessionID。
+	Session string `json:"session,omitempty"`
 }
 
 func openSecretStore(dir string) (*secretStore, error) {
@@ -75,9 +78,10 @@ func (ss *secretStore) set(id, password, key, proxy string) error {
 	defer ss.mu.Unlock()
 
 	entry := secretEntry{}
-	// 先继承已有的代理密码
+	// 先继承已有的代理密码与会话
 	if old, ok := ss.entries[id]; ok {
 		entry.Proxy = old.Proxy
+		entry.Session = old.Session
 	}
 
 	var err error

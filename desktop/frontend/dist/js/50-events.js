@@ -17,3 +17,17 @@
   bind('doctor:event', 'onDoctorEvent');   // 体检逐层推进（M2）
   bind('update:available', 'onUpdateAvailable'); // 启动后发现新版本
 })();
+
+/* 加载账号界面脚本（js/60-account.js）。
+   为什么不直接把 <script src> 写进 index.html：那个文件正由另一个并行会话修改，
+   任何一行插入都可能被对方的重写静默吞掉；在本文件末尾加载，永不丢失。
+   账号界面本身用「运行时注入」填充 DOM，同样不改 index.html。
+   见 COORDINATION.md §三 与《并行会话协作约定》§三。 */
+(function () {
+  'use strict';
+  if (document.getElementById('accScript')) return;
+  var s = document.createElement('script');
+  s.id = 'accScript';
+  s.src = 'js/60-account.js';
+  document.body.appendChild(s);
+})();

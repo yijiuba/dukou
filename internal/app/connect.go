@@ -53,6 +53,8 @@ func (s *Service) Connect(serverID string) (Status, error) {
 
 	s.markServerStatus(serverID, "active")
 	s.emitStatus(st)
+	// 已连接才累计"有效在线"（契约 E9 口径），未连接不上报
+	s.startHeartbeat()
 	return st, nil
 }
 
@@ -70,6 +72,7 @@ func (s *Service) Disconnect() error {
 	if current.ServerID != "" {
 		s.markServerStatus(current.ServerID, "standby")
 	}
+	s.stopHeartbeat()
 	s.emitStatus(Status{})
 	return nil
 }
