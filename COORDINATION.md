@@ -9,8 +9,10 @@
 
 | 登记时间 | 会话 / 任务 | 占用文件 | 意图 | 状态 |
 |---|---|---|---|---|
-| 11-16 17:42 | 账号线 T9 | `internal/account/**`、`js/60-account.js`（新建） | 登录弹窗 + 订阅状态，**运行时注入，不碰 index.html** | 进行中 |
-| 11-16 17:40 | M3 客户端线 | `desktop/frontend/dist/index.html`、`internal/app/{backup,export,update}.go`、`internal/store/backup.go` | 备份/导入导出/更新提醒 UI | 进行中（对方维护） |
+| 11-16 17:58 | 账号线 T9 | `internal/account/**`、`js/60-account.js`、`js/50-events.js`（末尾追加加载器） | 登录弹窗 + 订阅状态，运行时注入，**未碰 index.html** | 已提交 `44b9956`，UI 待真机验收 |
+| 11-16 17:55 | M3 客户端线 | `index.html`、`internal/app/{backup,export,update}.go`、`internal/store/backup.go`、`desktop/main.go`、`cmd/root.go`、`.github/workflows/*`、`wails.json` | 备份/导出/更新 + 发版 v0.2.0 准备 | 进行中（对方维护） |
+
+**账号线未提交的遗留**：`desktop/app.go`、`js/20-api.js` 两个文件里既有我的字段转发，也有对方的备份/更新方法，属于**混改文件**，等对方把 `internal/app/backup.go` 等提交入库后一起提交，避免我这边造出"引用未入库文件"的坏提交。
 
 ## 二、文件所有权
 
@@ -28,6 +30,7 @@
 | `internal/app/app.go` | struct 字段区末尾、文件末尾新增方法 | 不动对方字段、不重排 import 块 |
 | `desktop/app.go` | 文件末尾新增转发方法 | 不动对方的转发方法 |
 | `desktop/frontend/dist/js/20-api.js` | 各自 namespace 末尾 | — |
+| `desktop/frontend/dist/js/50-events.js` | 文件末尾新增加载器/绑定 | 不动已有 `bind(...)` 列表 |
 | `.workbuddy/memory/YYYY-MM-DD.md` | **只在文件最末尾追加** | 绝不用整文件 Write；不用"替换中间某段"的方式改 |
 
 ### 分区（同一文件，不同区块）
