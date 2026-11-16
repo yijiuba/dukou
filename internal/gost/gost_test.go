@@ -157,3 +157,38 @@ func TestDetectInstalledVersionMissingBinary(t *testing.T) {
 		t.Errorf("不存在的二进制应返回空串，实际 %q", v)
 	}
 }
+
+// TestParseVersion 锁住两个真机撞到过的坑：
+// 有 v 前缀和无 v 前缀都要认，且不能把 "(go1.27.3 ...)" 当成版本号。
+func TestParseVersion(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"发行版包带 v 前缀", "gost v3.3.3 (go1.21.5 linux/amd64)", "3.3.3"},
+		{"官方二进制无 v 前缀", "gost 3.3.3 (go1.27.3 windows/amd64)", "3.3.3"},
+		{"尾随换行", "gost v3.3.3 (go1.21.5 linux/amd64)\n", "3.3.3"},
+		{"空输出", "", ""},
+		{"只有干扰信息", "gost (go1.27.3 windows/amd64)", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := ParseVersion(c.in); got != c.want {
+				t.Errorf("ParseVersion(%q) = %q，期望 %q", c.in, got, c.want)
+			}
+		})
+	}
+}
+
+// TestAssetNameOS 确认 Windows 资产名生成正确——扩展名不跟平台走，
+// 但平台段必须换掉，否则会去下 Linux 二进制然后在本机执行失败。
+func TestAssetNameOS(t *testing.T) {
+	name, err := AssetNameOS("3.3.3", "windows", "amd64", ".zip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "gost_3.3.3_windows_amd64.zip"; name != want {
+		t.Errorf("资产名 = %q，期望 %q", name, want)
+	}
+}

@@ -26,6 +26,10 @@ type secretStore struct {
 type secretEntry struct {
 	Password string `json:"pw,omitempty"` // base64(nonce+AES-GCM(密码))
 	Key      string `json:"key,omitempty"`
+	// Proxy 是代理通道的密码（部署时生成的那一个）。
+	// 它和 SSH 密码是两套东西：SSH 密码用于装服务端，
+	// 代理密码用于日常连接。连接时不碰 SSH，只读这一项。
+	Proxy string `json:"proxy,omitempty"`
 }
 
 func openSecretStore(dir string) (*secretStore, error) {
@@ -63,11 +67,19 @@ func openSecretStore(dir string) (*secretStore, error) {
 // set 写入并落盘。password/key 允许分别更新：传空串表示该项不变？不——
 // 这里语义是"整体覆盖"：只传想保存的项，另一项清空。上层 Update 的
 // "留空=保持原值"语义在 Store.Update 里通过"不调用 set"实现。
-func (ss *secretStore) set(id, password, key string) error {
+//
+// proxy 是例外：它单独保留。改 SSH 凭据时不可能顺带重设代理密码，
+// 若跟着整体覆盖，用户会莫名其妙地连不上——明明什么都没改。
+func (ss *secretStore) set(id, password, key, proxy string) error {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 
 	entry := secretEntry{}
+	// 先继承已有的代理密码
+	if old, ok := ss.entries[id]; ok {
+		entry.Proxy = old.Proxy
+	}
+
 	var err error
 	if password != "" {
 		if entry.Password, err = ss.encrypt(password); err != nil {
@@ -79,7 +91,12 @@ func (ss *secretStore) set(id, password, key string) error {
 			return err
 		}
 	}
-	if entry.Password == "" && entry.Key == "" {
+	if proxy != "" {
+		if entry.Proxy, err = ss.encrypt(proxy); err != nil {
+			return err
+		}
+	}
+	if entry.Password == "" && entry.Key == "" && entry.Proxy == "" {
 		delete(ss.entries, id)
 	} else {
 		ss.entries[id] = entry
@@ -87,24 +104,61 @@ func (ss *secretStore) set(id, password, key string) error {
 	return ss.saveLocked()
 }
 
-func (ss *secretStore) get(id string) (password, key string, ok bool, err error) {
+// setProxy 保存代理密码而不动 SSH 凭据。
+// 部署成功时调用：那一刻手里只有代理密码，SSH 密码可能是刚用完就丢的。
+func (ss *secretStore) setProxy(id, proxy string) error {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+
+	enc, err := ss.encrypt(proxy)
+	if err != nil {
+		return err
+	}
+	entry := ss.entries[id]
+	entry.Proxy = enc
+	ss.entries[id] = entry
+	return ss.saveLocked()
+}
+
+// proxyPassword 读取代理密码。没有记录时 ok 为 false。
+func (ss *secretStore) proxyPassword(id string) (string, bool, error) {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+
+	entry, exist := ss.entries[id]
+	if !exist || entry.Proxy == "" {
+		return "", false, nil
+	}
+	pw, err := ss.decrypt(entry.Proxy)
+	if err != nil {
+		return "", true, fmt.Errorf("代理密码解密失败（可能系统重装导致机器码变化）: %v", err)
+	}
+	return pw, true, nil
+}
+
+func (ss *secretStore) get(id string) (password, key, proxy string, ok bool, err error) {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 	entry, exist := ss.entries[id]
 	if !exist {
-		return "", "", false, nil
+		return "", "", "", false, nil
 	}
 	if entry.Password != "" {
 		if password, err = ss.decrypt(entry.Password); err != nil {
-			return "", "", true, fmt.Errorf("SSH 密码解密失败（可能系统重装导致机器码变化）：%v", err)
+			return "", "", "", true, fmt.Errorf("SSH 密码解密失败（可能系统重装导致机器码变化）：%v", err)
 		}
 	}
 	if entry.Key != "" {
 		if key, err = ss.decrypt(entry.Key); err != nil {
-			return "", "", true, fmt.Errorf("SSH 私钥解密失败（可能系统重装导致机器码变化）：%v", err)
+			return "", "", "", true, fmt.Errorf("SSH 私钥解密失败（可能系统重装导致机器码变化）：%v", err)
 		}
 	}
-	return password, key, true, nil
+	if entry.Proxy != "" {
+		if proxy, err = ss.decrypt(entry.Proxy); err != nil {
+			return "", "", "", true, fmt.Errorf("代理密码解密失败（可能系统重装导致机器码变化）：%v", err)
+		}
+	}
+	return password, key, proxy, true, nil
 }
 
 func (ss *secretStore) delete(id string) error {

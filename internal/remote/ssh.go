@@ -125,6 +125,31 @@ func dirOf(p string) string {
 	return p[:i]
 }
 
+// ReadFile 把远端文件读回本机。
+//
+// stdout 与 stderr 必须分开：stdout 是文件字节（二进制，可能恰好含有
+// 像报错的片段），stderr 才是执行结果说明。合并到同一个缓冲区里，
+// 一旦失败会把二进制垃圾当成错误信息打出来，也无法判断内容是否完整。
+func (s *SSH) ReadFile(path string) ([]byte, error) {
+	sess, err := s.client.NewSession()
+	if err != nil {
+		return nil, fmt.Errorf("建立会话失败（连接可能已断开）: %w", err)
+	}
+	defer sess.Close()
+
+	var out, errBuf bytes.Buffer
+	sess.Stdout = &out
+	sess.Stderr = &errBuf
+
+	if err := sess.Run("cat " + path); err != nil {
+		return nil, fmt.Errorf("读取 %s 失败: %s", path, firstLine(errBuf.String()))
+	}
+	if out.Len() == 0 {
+		return nil, fmt.Errorf("读取 %s 得到空内容", path)
+	}
+	return out.Bytes(), nil
+}
+
 // Run 在远端执行命令。每次新建一个 session，避免上次的退出状态污染本次。
 func (s *SSH) Run(cmd string) (string, error) {
 	sess, err := s.client.NewSession()

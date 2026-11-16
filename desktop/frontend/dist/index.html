@@ -1626,11 +1626,18 @@ window.addEventListener('keydown',function(e){
                       sshKey: '', localSudo: '', installCodex: false })
       .then(function (res) {
         toast('部署完成！出口 IP ' + (res.egressIp || '（验证中）') + '，已存入服务器清单');
-        // 部署成功 → 存入服务器清单（§5.1 AddServer，密码只进加密库）
+        // 部署成功 → 存入服务器清单（§5.1 AddServer）
+        // proxyPassword 是这次部署生成的代理密码，连接时用；它只进加密库，不回显。
+        // serverPort 是服务器上的入口端口，与 proxyPort（本机监听）必须分开传。
         DukouAPI.addServer({ name: host, flag: '', host: host, sshUser: user,
-                             authType: 'password', sshPort: port, proxyPort: 7890,
-                             sshPassword: pass, sshKey: '' })
-          .then(function () { renderServers(); toast('服务器已保存：' + host + '（清单见「代理服务器」页）'); })
+                             authType: 'password', sshPort: port,
+                             proxyPort: 7890, serverPort: res.port || 8443,
+                             sshPassword: pass, proxyPassword: res.password || '', sshKey: '' })
+          .then(function () {
+            renderServers();
+            refreshConn();
+            toast('服务器已保存：' + host + '（清单见「代理服务器」页）');
+          })
           .catch(function (e) { toast('部署成功，但存入清单失败：' + e.message); });
       })
       .catch(function (e) {
@@ -1691,10 +1698,25 @@ window.addEventListener('keydown',function(e){
       box.innerHTML = '<div class="mini-note" style="padding:10px 0;color:#b91c1c">清单读取失败：' + (e.message || e) + '</div>';
     });
   }
-  /* 连接/切换线路属 M2（internal/proxy）；M1 如实提示 */
+  /* 切到此线路：已连接时走「断旧连新」，未连接时直接连 */
   function switchTo(i){
     var s = _servers[i];
-    toast('「' + s.name + '」的连接与切换将在 v0.2 连接模块（M2）上线；当前版本可先部署、编辑与体检');
+    if (!s) return;
+    if (!DukouAPI.hasBackend()) { toast('后端未就绪：请在桌面 App 内使用'); return; }
+    if (connBusy) { toast('正在处理，请稍候…'); return; }
+    connBusy = true;
+
+    var p = connected
+      ? DukouAPI.switchServer(s.id).then(function () { return DukouAPI.proxyStatus(); })
+      : DukouAPI.connect(s.id);
+
+    p.then(function (st) {
+        applyConnStatus(st);
+        toast('已切换到「' + s.name + '」');
+        renderServers();
+      })
+      .catch(function (e) { toast('切换失败：' + (e.message || e)); })
+      .then(function () { connBusy = false; });
   }
   function retryDeploy(){ /* 旧演示入口，清单改真数据后不再使用 */ }
   function openEdit(i){
@@ -1811,16 +1833,91 @@ window.addEventListener('keydown',function(e){
     md.appendChild(b);
   });
 
+  /* ── 连接状态：唯一真相源在后端（internal/proxy） ──
+     界面不再自己记 connected，每次都由后端现场判断后回填：
+     进程可能被强杀、系统代理可能被别的软件改走，这些都是"现场"才知道的事。 */
+  var _connStatus = {};
+  var connBusy = false;
+
+  function applyConnStatus(st){
+    _connStatus = st || {};
+    connected = !!_connStatus.connected;
+
+    var pb = document.getElementById('powerBtn');
+    if (pb) pb.classList.toggle('on', connected);
+
+    var cs = document.getElementById('connState');
+    if (cs) cs.textContent = connected
+      ? '已连接 · 出口 ' + (_connStatus.egressIp || '探测中')
+      : '未连接 · 当前为直连（国内访问正常）';
+
+    var tip = document.getElementById('connTip');
+    if (tip) tip.textContent = connected
+      ? '系统代理已指向 127.0.0.1:' + (_connStatus.localPort || 7890) + '，国内域名自动直连'
+      : '分流自动生效：国内直连，国外走代理';
+
+    var st1 = document.getElementById('st1');
+    if (st1) st1.innerHTML = connected
+      ? '<b>' + (_connStatus.egressIp || '—') + '</b><span>出口 IP</span>' : '<b>—</b><span>出口 IP</span>';
+
+    var st2 = document.getElementById('st2');
+    if (st2) st2.innerHTML = connected
+      ? '<b>' + (_connStatus.latencyMs || 0) + 'ms</b><span>延迟</span>' : '<b>—</b><span>延迟</span>';
+
+    var warn = document.getElementById('aiWarn');
+    if (warn) warn.style.display = connected ? 'none' : 'block';
+
+    var ts = document.getElementById('trayState');
+    if (ts) {
+      ts.textContent = connected ? '已连接' : '未连接';
+      ts.style.color = connected ? '#10b981' : '#ef4444';
+    }
+    /* 上次异常退出留下的代理设置：明确告知，避免用户以为浏览器自己坏了 */
+    if (_connStatus.residue) {
+      toast('检测到上次异常退出留下的代理设置，点「连接」会自动接管，或运行 dukou disconnect 清理');
+    }
+  }
+  window.onProxyStatus = applyConnStatus;
+
+  function refreshConn(){
+    if (!DukouAPI.hasBackend()) return;
+    DukouAPI.proxyStatus().then(applyConnStatus).catch(function(){ /* 启动时静默 */ });
+  }
+
   function toggleConn(){
-    connected = !connected;
-    document.getElementById('powerBtn').classList.toggle('on', connected);
-    document.getElementById('connState').textContent = connected ? '已连接 · 国内直连 + 国外走代理' : '未连接 · 当前为直连（国内访问正常）';
-    document.getElementById('connTip').textContent = connected ? '出口已验证：47.xx.xx.10（你的代理服务器）' : '分流自动生效：国内直连，国外走代理';
-    document.getElementById('st1').innerHTML = connected ? '<b>47.xx.xx.10</b><span>出口 IP</span>' : '<b>—</b><span>出口 IP</span>';
-    document.getElementById('st2').innerHTML = connected ? '<b>63ms</b><span>延迟</span>' : '<b>—</b><span>延迟</span>';
-    document.getElementById('aiWarn').style.display = connected ? 'none' : 'block';
-    document.getElementById('trayState').textContent = connected ? '已连接' : '未连接';
-    document.getElementById('trayState').style.color = connected ? '#10b981' : '#ef4444';
+    if (!DukouAPI.hasBackend()) { toast('后端未就绪：请在桌面 App 内使用'); return; }
+    if (connBusy) { toast('正在处理，请稍候…'); return; }
+
+    var btn = document.getElementById('powerBtn');
+    connBusy = true;
+    if (btn) btn.classList.add('busy');
+    function done(){ connBusy = false; if (btn) btn.classList.remove('busy'); }
+
+    if (connected) {
+      DukouAPI.disconnect()
+        .then(function () { toast('已断开，系统代理已还原'); return DukouAPI.proxyStatus(); })
+        .then(applyConnStatus)
+        .catch(function (e) { toast('断开失败：' + (e.message || e)); })
+        .then(done);
+      return;
+    }
+
+    /* 优先用标记为「使用中」的线路，否则取清单第一台 */
+    var srv = _servers.filter(function (s) { return s.status === 'active'; })[0] || _servers[0];
+    if (!srv) {
+      done();
+      toast('还没有可用服务器，先去「网络配置」部署一台');
+      nav('network');
+      return;
+    }
+    DukouAPI.connect(srv.id)
+      .then(function (st) {
+        applyConnStatus(st);
+        toast('已连接 · 出口 IP ' + (st.egressIp || '探测中'));
+        renderServers();
+      })
+      .catch(function (e) { toast('连接失败：' + (e.message || e)); })
+      .then(done);
   }
   function segNet(el, mode){
     document.querySelectorAll('#segNet div').forEach(function(d){d.classList.remove('on');});
@@ -1890,18 +1987,6 @@ window.addEventListener('keydown',function(e){
   renderDoctor();
 
   /* ── 启动拉取：连接状态 / 首次启动引导 / 服务器清单（§5.1 前端启动时先拉一次） ── */
-  function applyProxyStatus(st) {
-    if (!st || !st.connected) return; // M1 无连接能力，恒为断开态；M2 接真状态渲染
-    connected = true;
-    document.getElementById('powerBtn').classList.add('on');
-    document.getElementById('connState').textContent = '已连接 · ' + (st.serverName || '代理线路');
-    document.getElementById('st1').innerHTML = '<b>' + (st.egressIp || '—') + '</b><span>出口 IP</span>';
-    document.getElementById('st2').innerHTML = '<b>' + (st.latencyMs ? st.latencyMs + 'ms' : '—') + '</b><span>延迟</span>';
-    document.getElementById('trayState').textContent = '已连接';
-    document.getElementById('trayState').style.color = '#10b981';
-    document.getElementById('aiWarn').style.display = 'none';
-  }
-  window.onProxyStatus = applyProxyStatus;
   /* window.go 由 Wails runtime 异步注入，页面脚本执行时未必就绪——轮询等待后拉取。
      不等待的话首次启动会永远拉不到状态、清单显示"加载中"。 */
   function whenBackendReady(cb, attempts) {
@@ -1910,7 +1995,7 @@ window.addEventListener('keydown',function(e){
     setTimeout(function () { whenBackendReady(cb, attempts - 1); }, 300);
   }
   whenBackendReady(function () {
-    DukouAPI.proxyStatus().then(applyProxyStatus).catch(function () {});
+    refreshConn();
     DukouAPI.appInfo().then(function (info) {
       if (info && info.firstRun) openModal('obModal');
     }).catch(function () {});

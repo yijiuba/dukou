@@ -27,10 +27,16 @@ func main() {
 	// 注意：此参数只在 WebView2 浏览器进程首次创建时生效；实测部分版本对
 	// Ctrl+滚轮仍放行，真正的拦截在前端 index.html 的 wheel 事件守卫（renderer 层）。
 	// 保留用户已自定义的参数，追加而不是覆盖。
+	// 调试端口只在 dev 模式注入：CDP 让自动化验证可以直接驱动页面（注 JS、点按钮），
+	// 生产构建不带这个 tag，不会有远程调试面暴露。
+	var extra string
+	if debug {
+		extra = " --remote-debugging-port=9222"
+	}
 	if prev := os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"); prev != "" {
-		os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", prev+" --disable-zoom --disable-pinch")
+		os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", prev+" --disable-zoom --disable-pinch"+extra)
 	} else {
-		os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-zoom --disable-pinch")
+		os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-zoom --disable-pinch"+extra)
 	}
 
 	// 服务层：打开本地存储（失败直接退出——没有清单/凭据库一切免谈）。

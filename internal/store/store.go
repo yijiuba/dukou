@@ -29,8 +29,12 @@ type Server struct {
 	SSHPort   int    `json:"sshPort"`
 	SSHUser   string `json:"sshUser"`
 	AuthType  string `json:"authType"`  // password | key
-	ProxyPort int    `json:"proxyPort"` // 本机代理监听端口
-	ProxyUser string `json:"proxyUser"`
+	ProxyPort int    `json:"proxyPort"` // 本机代理监听端口（如 7890）
+	// ServerPort 是服务器上代理监听的端口（部署时的 --port，默认 8443）。
+	// 与 ProxyPort 是两回事：一个是远端入口，一个是本机入口。
+	// 混成一个字段的后果是本机监听 8443、而上游也连 8443，端口语义全乱。
+	ServerPort int    `json:"serverPort"`
+	ProxyUser  string `json:"proxyUser"`
 	Status    string `json:"status"`    // active | standby | error | locked
 	LastCheck string `json:"lastCheck"` // RFC3339
 	Locked    bool   `json:"locked"`    // 订阅到期后的只读标记
@@ -46,8 +50,12 @@ type ServerInput struct {
 	AuthType    string `json:"authType"`
 	SSHPort     int    `json:"sshPort"`
 	ProxyPort   int    `json:"proxyPort"`
+	ServerPort  int    `json:"serverPort"`
 	SSHPassword string `json:"sshPassword"` // 只写不读
 	SSHKey      string `json:"sshKey"`      // 只写不读
+	// ProxyPassword 是部署时生成的代理通道密码，连接时用。
+	// 与 SSH 密码同为只写字段，留空表示保持原值。
+	ProxyPassword string `json:"proxyPassword"`
 }
 
 type envelope struct {
@@ -141,7 +149,7 @@ func (st *Store) Add(in ServerInput) (Server, error) {
 	if s.Status == "" {
 		s.Status = "standby"
 	}
-	if err := st.secrets.set(s.ID, in.SSHPassword, in.SSHKey); err != nil {
+	if err := st.secrets.set(s.ID, in.SSHPassword, in.SSHKey, in.ProxyPassword); err != nil {
 		return Server{}, fmt.Errorf("保存 SSH 凭据失败：%v", err)
 	}
 	st.servers = append(st.servers, s)
@@ -179,8 +187,8 @@ func (st *Store) Update(id string, in ServerInput) (Server, error) {
 	s.LastCheck = old.LastCheck
 	s.Locked = old.Locked
 
-	if in.SSHPassword != "" || in.SSHKey != "" {
-		if err := st.secrets.set(id, in.SSHPassword, in.SSHKey); err != nil {
+	if in.SSHPassword != "" || in.SSHKey != "" || in.ProxyPassword != "" {
+		if err := st.secrets.set(id, in.SSHPassword, in.SSHKey, in.ProxyPassword); err != nil {
 			return Server{}, fmt.Errorf("更新 SSH 凭据失败：%v", err)
 		}
 	}
@@ -222,11 +230,11 @@ func (st *Store) Remove(id string) error {
 	return nil
 }
 
-// SSHCredentials 取某台服务器的解密凭据（连接时用，M2 起）。
+// SSHCredentials 取某台服务器的解密凭据（部署/重装时用）。
 func (st *Store) SSHCredentials(id string) (password, key string, err error) {
 	st.mu.RLock()
 	defer st.mu.RUnlock()
-	pw, key, ok, err := st.secrets.get(id)
+	pw, key, _, ok, err := st.secrets.get(id)
 	if err != nil {
 		return "", "", fmt.Errorf("读取 SSH 凭据失败：%v", err)
 	}
@@ -234,6 +242,58 @@ func (st *Store) SSHCredentials(id string) (password, key string, err error) {
 		return "", "", fmt.Errorf("服务器 %s 没有保存过凭据", id)
 	}
 	return pw, key, nil
+}
+
+// SetStatus 更新某台服务器的使用状态（active / standby / error / locked）。
+// 只动状态与检查时间，不碰凭据。
+func (st *Store) SetStatus(id, status string) error {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	for i := range st.servers {
+		if st.servers[i].ID != id {
+			continue
+		}
+		prev := st.servers[i]
+		st.servers[i].Status = status
+		st.servers[i].LastCheck = time.Now().Format(time.RFC3339)
+		if err := st.saveLocked(); err != nil {
+			st.servers[i] = prev
+			return err
+		}
+		return nil
+	}
+	return fmt.Errorf("找不到服务器 %s，可能已被删除，请刷新列表", id)
+}
+
+// ProxyCredentials 取代理通道的用户名与密码。
+//
+// 这条路不碰 SSH：连接一台已经部署好的服务器时，
+// 本机完全不需要、也不应该再接触服务器上的 root 密码。
+func (st *Store) ProxyCredentials(id string) (user, password string, err error) {
+	st.mu.RLock()
+	var srv Server
+	found := false
+	for _, s := range st.servers {
+		if s.ID == id {
+			srv, found = s, true
+			break
+		}
+	}
+	st.mu.RUnlock()
+
+	if !found {
+		return "", "", fmt.Errorf("找不到服务器 %s，可能已被删除，请刷新列表", id)
+	}
+
+	pw, ok, err := st.secrets.proxyPassword(id)
+	if err != nil {
+		return "", "", err
+	}
+	if !ok {
+		return "", "", fmt.Errorf("服务器 %s 还没有代理密码，请重新执行一次部署", srv.Name)
+	}
+	return orDefault(srv.ProxyUser, "dukou"), pw, nil
 }
 
 // saveLocked 原子写 servers.json。调用方必须已持有写锁。
@@ -270,15 +330,20 @@ func normalize(in ServerInput) (Server, error) {
 	if proxyPort == 0 {
 		proxyPort = 7890
 	}
+	serverPort := in.ServerPort
+	if serverPort == 0 {
+		serverPort = 8443
+	}
 	return Server{
-		Name:      in.Name,
-		Flag:      in.Flag,
-		Host:      in.Host,
-		SSHPort:   sshPort,
-		SSHUser:   orDefault(in.SSHUser, "root"),
-		AuthType:  auth,
-		ProxyPort: proxyPort,
-		ProxyUser: "dukou", // 本机代理认证用户名固定；ProxyInput 契约里由部署结果回填
+		Name:       in.Name,
+		Flag:       in.Flag,
+		Host:       in.Host,
+		SSHPort:    sshPort,
+		SSHUser:    orDefault(in.SSHUser, "root"),
+		AuthType:   auth,
+		ProxyPort:  proxyPort,
+		ServerPort: serverPort,
+		ProxyUser:  "dukou", // 本机代理认证用户名固定；ProxyInput 契约里由部署结果回填
 	}, nil
 }
 

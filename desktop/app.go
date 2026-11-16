@@ -74,6 +74,21 @@ func (a *App) ProxyStatus() (app.Status, error) {
 	return a.svc.ProxyStatus()
 }
 
+// Connect 起本机代理并接管系统代理。
+func (a *App) Connect(serverID string) (app.Status, error) {
+	return a.svc.Connect(serverID)
+}
+
+// Disconnect 停代理并严格还原系统代理。
+func (a *App) Disconnect() error {
+	return a.svc.Disconnect()
+}
+
+// SwitchServer 切换线路：先断开旧线路，再连新线路。
+func (a *App) SwitchServer(serverID string) error {
+	return a.svc.SwitchServer(serverID)
+}
+
 // AppInfo 版本/平台/首次启动标记（新手引导只弹一次）。
 func (a *App) AppInfo() (app.AppInfo, error) {
 	return a.svc.AppInfo()

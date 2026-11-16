@@ -11,6 +11,7 @@ package gost
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
@@ -78,16 +79,32 @@ func assetArch(goarch string) (string, error) {
 
 // AssetName 返回资产文件名，例如 gost_3.3.3_linux_amd64.tar.gz。
 func AssetName(version, goarch, ext string) (string, error) {
+	return AssetNameOS(version, "linux", goarch, ext)
+}
+
+// AssetNameOS 按目标平台返回资产文件名。
+//
+// GitHub Release 的命名规则是 gost_<版本>_<goos>_<goarch><扩展名>，
+// 只有扩展名不跟平台走：Windows 发 zip，其余发 tar.gz 或 deb/rpm。
+func AssetNameOS(version, goos, goarch, ext string) (string, error) {
 	arch, err := assetArch(goarch)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("gost_%s_linux_%s%s", version, arch, ext), nil
+	if goos == "" {
+		goos = "linux"
+	}
+	return fmt.Sprintf("gost_%s_%s_%s%s", version, goos, arch, ext), nil
 }
 
 // DownloadURL 返回资产的完整下载地址。
 func DownloadURL(version, goarch, ext string) (string, error) {
-	name, err := AssetName(version, goarch, ext)
+	return DownloadURLFor(version, "linux", goarch, ext)
+}
+
+// DownloadURLFor 按目标平台返回下载地址。
+func DownloadURLFor(version, goos, goarch, ext string) (string, error) {
+	name, err := AssetNameOS(version, goos, goarch, ext)
 	if err != nil {
 		return "", err
 	}
@@ -101,13 +118,43 @@ func DetectInstalledVersion(binPath string) string {
 	if err != nil {
 		return ""
 	}
-	// 输出形如：gost v3.3.3 (go1.21.5 linux/amd64)
-	for _, f := range strings.Fields(string(out)) {
-		if strings.HasPrefix(f, "v") && len(f) > 1 && f[1] >= '0' && f[1] <= '9' {
-			return strings.TrimPrefix(f, "v")
+	return ParseVersion(string(out))
+}
+
+// ParseVersion 从 `gost -V` 的输出里取出纯版本号。
+//
+// 两个坑都在真实机器上撞到过：
+//   - 前缀不统一。Linux 发行版包输出 "gost v3.3.3 (...)"，
+//     而 GitHub 原始二进制输出 "gost 3.3.3 (...)"，没有 v。
+//     只认 v 前缀会让「已经装好了」被误判成「没装」，
+//     于是每次部署都重下一遍 17 MB。
+//   - 输出里还有括号中的 "go1.27.3"。按「含点即版本」取会拿到 Go 版本号。
+//     所以要求点号左边全是数字。
+func ParseVersion(out string) string {
+	for _, f := range strings.Fields(out) {
+		f = strings.TrimPrefix(f, "v")
+		i := strings.IndexByte(f, '.')
+		if i <= 0 {
+			continue
+		}
+		if isDigits(f[:i]) {
+			return f
 		}
 	}
 	return ""
+}
+
+// isDigits 判断字符串是否全为数字。
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // Fetch 下载资产到 destDir，返回本地文件路径与字节数。
@@ -207,6 +254,10 @@ func verifyAsset(path string) error {
 		if n < 2 || head[0] != 0x1f || head[1] != 0x8b {
 			return fmt.Errorf("下载到的不是 gzip 文件（文件头 %x），可能是代理返回的错误页面", head)
 		}
+	case strings.HasSuffix(path, ".zip"):
+		if n < 4 || head[0] != 'P' || head[1] != 'K' || head[2] != 0x03 || head[3] != 0x04 {
+			return fmt.Errorf("下载到的不是 zip 文件（文件头 %x），可能是代理返回的错误页面", head)
+		}
 	}
 
 	if st.Size() < 1<<20 {
@@ -295,4 +346,52 @@ func ExtractTarball(archive, destDir string) (string, error) {
 		return dest, nil
 	}
 	return "", fmt.Errorf("%s 中找不到 gost 可执行文件", archive)
+}
+
+// ExtractZip 从 zip 中取出可执行文件，放到 destDir 并返回最终路径。
+//
+// Windows 资产是 zip 而 Linux 是 tar.gz，两者解包方式不同；
+// 单独实现而不是引第三方库，是因为这里只需要「取出一个文件」这一件事。
+func ExtractZip(archive, destDir, binName string) (string, error) {
+	r, err := zip.OpenReader(archive)
+	if err != nil {
+		return "", fmt.Errorf("%s 不是有效的 zip（可能没下载完整）: %w", archive, err)
+	}
+	defer r.Close()
+
+	for _, f := range r.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		// 归档里的路径可能带子目录，按 basename 匹配
+		if !strings.EqualFold(filepath.Base(f.Name), binName) {
+			continue
+		}
+		if err := os.MkdirAll(destDir, 0o755); err != nil {
+			return "", err
+		}
+		dest := filepath.Join(destDir, binName)
+
+		rc, err := f.Open()
+		if err != nil {
+			return "", fmt.Errorf("读取 %s 失败: %w", f.Name, err)
+		}
+		defer rc.Close()
+
+		out, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+		if err != nil {
+			return "", err
+		}
+		if _, err := io.Copy(out, rc); err != nil {
+			out.Close()
+			os.Remove(dest)
+			return "", fmt.Errorf("写出 %s 失败: %w", dest, err)
+		}
+		if err := out.Close(); err != nil {
+			os.Remove(dest)
+			return "", err
+		}
+		return dest, nil
+	}
+	return "", fmt.Errorf("%s 中找不到 %s", archive, binName)
 }

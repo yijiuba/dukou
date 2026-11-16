@@ -1,8 +1,7 @@
 package app
 
 import (
-	"os"
-	"path/filepath"
+	"context"
 	"testing"
 )
 
@@ -26,36 +25,27 @@ func TestProxyStatusDefaultDisconnected(t *testing.T) {
 	}
 }
 
-func TestStatusPersistsAcrossRestart(t *testing.T) {
-	dir := t.TempDir()
-	s, _ := New(dir)
-	if err := s.saveStatus(Status{Connected: true, ServerID: "id-1", ServerName: "东京", LocalPort: 7890, EgressIP: "5.6.7.8", Since: "2026-11-16T12:00:00Z"}); err != nil {
-		t.Fatalf("saveStatus: %v", err)
+// 说明：v0.2 M2 起连接状态不再落盘到 status.json，
+// 而是由 internal/proxy 现场判断（进程是否还在、系统代理是否还指向本工具）。
+// 原来的「重启后还原状态」测试因此不再适用——它验证的是一个已经删掉的机制。
+
+func TestConnectRequiresKnownServer(t *testing.T) {
+	s := newTestService(t)
+	s.Startup(context.Background())
+
+	if _, err := s.Connect(""); err == nil {
+		t.Fatal("空 serverID 应报错")
 	}
-	// 模拟重启
-	s2, err := New(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	st, err := s2.ProxyStatus()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !st.Connected || st.ServerName != "东京" || st.EgressIP != "5.6.7.8" {
-		t.Fatalf("重启后状态应还原: %+v", st)
+	if _, err := s.Connect("nonexistent-id"); err == nil {
+		t.Fatal("不存在的服务器应报错，而不是静默连到空地址")
 	}
 }
 
-func TestStatusCorruptFile(t *testing.T) {
-	dir := t.TempDir()
-	st, _ := New(dir)
-	_ = st.saveStatus(Status{Connected: true})
-	if err := os.WriteFile(filepath.Join(dir, "status.json"), []byte("bogus"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	s2, _ := New(dir)
-	if _, err := s2.ProxyStatus(); err == nil {
-		t.Fatal("损坏的状态文件应报错而不是返回假数据")
+func TestConnectWithoutContext(t *testing.T) {
+	s := newTestService(t)
+	// 未 Startup 时 ctx 为 nil，应当明确拒绝，而不是让 proxy 拿空上下文去启动进程
+	if _, err := s.Connect("any-id"); err == nil {
+		t.Fatal("应用未就绪时应报错")
 	}
 }
 

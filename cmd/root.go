@@ -24,6 +24,7 @@ var commands = []subcommand{
 	{name: "deploy", summary: "一键部署：SSH 远程装服务端 + 装本机客户端", run: runDeploy},
 	{name: "server", summary: "在出口服务器上部署代理服务端", run: runServer},
 	{name: "client", summary: "在受控机器上接通道并安装 CLI", run: runClient},
+	{name: "disconnect", summary: "断开本机代理并还原系统代理", run: runDisconnect},
 	{name: "doctor", summary: "分层诊断，定位断点并给出修复命令", run: runDoctor},
 	{name: "rotate-password", summary: "生成随机密码并同步两端", run: runRotatePassword},
 	{name: "selfcheck", summary: "快速自检：服务、拥塞算法、分流、CLI", run: runSelfcheck},

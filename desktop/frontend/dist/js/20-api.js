@@ -47,6 +47,9 @@
     /* ── 部署与连接（真接口） ── */
     deploy: function (req) { return call('Deploy', [req]); },
     proxyStatus: function () { return call('ProxyStatus'); },
+    connect: function (serverId) { return call('Connect', [serverId]); },
+    disconnect: function () { return call('Disconnect'); },
+    switchServer: function (serverId) { return call('SwitchServer', [serverId]); },
 
     /* ── 应用信息 ── */
     appInfo: function () { return call('AppInfo'); },
