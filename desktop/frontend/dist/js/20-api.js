@@ -27,8 +27,8 @@
     orders: true,    // 订单列表
     referral: true,  // 推广数据
     plans: true,     // 套餐
-    doctor: true,    // 体检（M2 接 App.Doctor）
-    batch: true,     // 批量体检（M2）
+    doctor: false,   // 体检（M2-1 已接 App.Doctor）
+    batch: true,     // 批量体检（M2 后续）
     sync: true,      // 同步配置（M3）
     update: true     // 更新检查（发版后接 GitHub Releases）
     // servers / deploy / proxyStatus / appInfo：不 mock，走真接口
@@ -50,6 +50,9 @@
     connect: function (serverId) { return call('Connect', [serverId]); },
     disconnect: function () { return call('Disconnect'); },
     switchServer: function (serverId) { return call('SwitchServer', [serverId]); },
+
+    /* ── 分层体检（真接口，M2-1 接入） ── */
+    doctor: function (serverId) { return call('Doctor', [serverId]); },
 
     /* ── 应用信息 ── */
     appInfo: function () { return call('AppInfo'); },

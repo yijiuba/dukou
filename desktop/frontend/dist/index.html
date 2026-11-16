@@ -598,14 +598,14 @@ window.addEventListener('keydown',function(e){
         <div class="page-head"><h2>健康诊断</h2>
           <div class="sub">七层体检：环境 · 配置 · 服务 · 链路 · 鉴权 · 转发 · 性能。一层不通就指出问题并给出修复命令；免费版可诊断，订阅版可一键修复</div></div>
         <div class="card" style="display:flex;align-items:center;gap:18px">
-          <div id="docScore" style="width:74px;height:74px;border-radius:50%;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;flex-shrink:0">82</div>
+            <div id="docScore" style="width:74px;height:74px;border-radius:50%;background:#f3f4f6;color:#6b7280;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;flex-shrink:0">–</div>
           <div style="flex:1">
-            <b style="font-size:15px" id="docTitle">基本健康 · 1 项可优化</b>
-            <div style="font-size:13px;color:#6b7280;margin-top:5px" id="docDesc">环境、配置、服务、链路四层通过；性能层提示：拥塞算法非 bbr（跨国链路可能偏慢）</div>
-            <div style="font-size:12px;color:#6b7280;margin-top:7px" id="docMeta">上次体检：3 分钟前 · 7 层全部执行</div>
+            <b style="font-size:15px" id="docTitle">尚未体检</b>
+            <div style="font-size:13px;color:#6b7280;margin-top:5px" id="docDesc">点右上角「一键体检」，对当前线路跑完整分层诊断</div>
+            <div style="font-size:12px;color:#6b7280;margin-top:7px" id="docMeta">体检包含：环境 · 配置 · 服务 · 链路 · 鉴权 · 转发 · 性能 · 分流</div>
           </div>
           <div style="text-align:right;flex-shrink:0">
-            <button class="btn" id="fixBtn" onclick="fixAll()"><svg class="i sm"><use href="#i-bolt"/></svg>一键修复</button>
+            <button class="btn" id="fixBtn" onclick="fixAll()" style="display:none"><svg class="i sm"><use href="#i-bolt"/></svg>一键修复</button>
             <button class="btn ghost sm" id="reBtn" onclick="runCheck()" style="margin-left:6px"><svg class="i sm"><use href="#i-search"/></svg>重新体检</button>
             <div style="font-size:11px;color:#6b7280;margin-top:7px" id="docHint">订阅功能 · 免费版可复制命令自行执行</div>
           </div>
@@ -613,25 +613,13 @@ window.addEventListener('keydown',function(e){
 
         <div class="card">
           <h3>分层检查结果</h3>
-          <div class="step done"><div class="n">✓</div><div style="flex:1"><b>L1 环境</b> · Ubuntu 24.04 · 内核 6.8 · 依赖齐备</div><span style="font-size:12px;color:#10b981">通过</span></div>
-          <div class="step done"><div class="n">✓</div><div style="flex:1"><b>L2 配置</b> · /etc/dukou.conf 两端一致（端口 8443 · BBR 已开启）</div><span style="font-size:12px;color:#10b981">通过</span></div>
-          <div class="step done"><div class="n">✓</div><div style="flex:1"><b>L3 服务</b> · 服务端 gost 运行中（systemd active）</div><span style="font-size:12px;color:#10b981">通过</span></div>
-          <div class="step done"><div class="n">✓</div><div style="flex:1"><b>L4 链路</b> · 8443 TLS 可达（新加坡 · 63ms）</div><span style="font-size:12px;color:#10b981">通过</span></div>
-          <div class="step done"><div class="n">✓</div><div style="flex:1"><b>L5 鉴权</b> · 带凭据请求返回 200（密码两端一致）</div><span style="font-size:12px;color:#10b981">通过</span></div>
-          <div class="step done"><div class="n">✓</div><div style="flex:1"><b>L6 转发</b> · github.com / google 经代理可达（域名特异性正常）</div><span style="font-size:12px;color:#10b981">通过</span></div>
-          <div class="step" id="l7row"><div class="n" style="background:#fef3c7;color:#b45309">!</div><div style="flex:1"><b>L7 性能</b> · 丢包 1.2% · 吞吐 18.6 MB/s · 拥塞算法 cubic（建议 bbr）<div style="font-size:12px;color:#6b7280;margin-top:3px">修复命令：modprobe tcp_bbr &amp;&amp; sysctl -w net.ipv4.tcp_congestion_control=bbr（可复制自行执行）</div></div><span style="font-size:12px;color:#b45309">可优化</span></div>
-          <div class="step done"><div class="n">✓</div><div style="flex:1"><b>分流检查</b> · 国内直连正常（baidu 200）· PAC 生效</div><span style="font-size:12px;color:#10b981">通过</span></div>
+          <div id="docLayers"></div>
         </div>
 
         <div class="card">
           <h3>诊断日志（可导出）</h3>
-          <div style="font-family:ui-monospace,monospace;font-size:12px;color:#4b5563;background:#f8fafc;border:1px solid #eef0f3;border-radius:8px;padding:12px;line-height:1.9">
-            [L1] tcp 47.xx.xx.10:8443 ... open (63ms)<br>
-            [L2] curl -x proxy https://api.ipify.org ... 47.xx.xx.10<br>
-            [L3] curl -x proxy https://api.github.com ... 200<br>
-            [L5] sysctl net.ipv4.tcp_congestion_control ... cubic
-          </div>
-          <div style="margin-top:12px"><button class="btn ghost sm">导出诊断报告</button> <span style="font-size:12px;color:#6b7280">便于贴到社区求助时脱敏分享</span></div>
+          <div style="font-family:ui-monospace,monospace;font-size:12px;color:#4b5563;background:#f8fafc;border:1px solid #eef0f3;border-radius:8px;padding:12px;line-height:1.9" id="docLog">尚未体检。点右上角「一键体检」开始。</div>
+          <div style="margin-top:12px"><button class="btn ghost sm" onclick="exportDoctorLog()">导出诊断报告</button> <span style="font-size:12px;color:#6b7280">便于贴到社区求助时脱敏分享</span></div>
         </div>
       </div>
 
@@ -1338,48 +1326,111 @@ window.addEventListener('keydown',function(e){
   }
   window.addEventListener('resize', fitHero);
 
-  /* 健康诊断：异常=一键修复，正常=一键体检 */
-  var docFixed = false;
-  function renderDoctor(){
+  /* ── 健康诊断：真实分层体检（M2-1 接 App.Doctor） ─────────────────
+     后端按 §六 分层口径执行：非当前线路只跑 L1~L3（+L4 TCP 拨测），
+     L5~L8 skip 并提示切线路；分数 = 100 - 20*fail - 8*warn，skip 不计。 */
+  var _lastDoctorReport = null;   // 供导出诊断日志
+  var _lastDoctorTarget = null;   // 上次体检的服务器 id，重新体检用同一线路
+
+  function doctorLayerRow(l){
+    var mark, color, label;
+    switch(l.status){
+      case 'pass': mark='✓'; color='#10b981'; label='通过'; break;
+      case 'fail': mark='✕'; color='#ef4444'; label='未通过'; break;
+      case 'warn': mark='!'; color='#b45309'; label='可优化'; break;
+      default:     mark='–'; color='#9ca3af'; label='跳过';
+    }
+    var badge = mark==='✓'
+      ? '<div class="n" style="background:#d1fae5;color:#047857">✓</div>'
+      : '<div class="n" style="background:'+(l.status==='fail'?'#fee2e2':'#fef3c7')+';color:'+color+'">'+mark+'</div>';
+    var html = '<div class="step'+(l.status==='pass'?' done':'')+'">'+badge
+      + '<div style="flex:1"><b>'+l.id+' '+l.name+'</b> · '+l.summary;
+    if(l.explain){ html += '<div style="font-size:12px;color:#6b7280;margin-top:3px">'+l.explain+'</div>'; }
+    if(l.fix && l.fix.length){ html += '<div style="font-size:12px;color:#6b7280;margin-top:3px;font-family:ui-monospace,monospace;white-space:pre-line">'+l.fix.join('\n')+'</div>'; }
+    html += '</div><span style="font-size:12px;color:'+color+'">'+label+'</span></div>';
+    return html;
+  }
+
+  function renderDoctorReport(rep){
+    _lastDoctorReport = rep;
     var score=document.getElementById('docScore'), title=document.getElementById('docTitle'),
         desc=document.getElementById('docDesc'), fix=document.getElementById('fixBtn'),
         re=document.getElementById('reBtn'), hint=document.getElementById('docHint'),
-        row=document.getElementById('l7row');
-    if(docFixed){
-      row.className='step done';
-      score.textContent='100'; score.style.background='#d1fae5'; score.style.color='#047857';
-      title.textContent='全部通过 · 链路健康';
-      desc.textContent='7 层检查全部通过：环境、配置、服务、链路、鉴权、转发、性能';
-      hint.textContent='刚刚修复 · 已启用 bbr';
-      fix.style.display='none';
-      re.className='btn'; re.innerHTML='<svg class="i sm"><use href="#i-search"/></svg>一键体检';
-      row.innerHTML='<div class="n">✓</div><div style="flex:1"><b>L7 性能</b> · 丢包 0.2% · 吞吐 28.4 MB/s · 拥塞算法 bbr</div><span style="font-size:12px;color:#10b981">通过</span>';
+        meta=document.getElementById('docMeta');
+    var s = rep.score;
+    score.textContent = s;
+    if(s >= 90){ score.style.background='#d1fae5'; score.style.color='#047857'; }
+    else if(s >= 60){ score.style.background='#fef3c7'; score.style.color='#b45309'; }
+    else { score.style.background='#fee2e2'; score.style.color='#b91c1c'; }
+
+    var fails = rep.layers.filter(function(l){return l.status==='fail';});
+    var warns = rep.layers.filter(function(l){return l.status==='warn';});
+    var scope = rep.current ? '完整体检' : '服务端体检（L1~L4，其余需切到该线路）';
+    if(fails.length){
+      title.textContent = '发现 ' + fails.length + ' 项问题';
+      desc.textContent = '第一处断点：' + fails[0].id + ' ' + fails[0].name + ' —— ' + fails[0].summary;
+    } else if(warns.length){
+      title.textContent = '基本健康 · ' + warns.length + ' 项可优化';
+      desc.textContent = warns[0].id + ' ' + warns[0].name + '：' + warns[0].summary;
     } else {
-      row.className='step';
-      score.textContent='82'; score.style.background='#fef3c7'; score.style.color='#b45309';
-      title.textContent='基本健康 · 1 项可优化';
-      desc.textContent='环境、配置、服务、链路四层通过；性能层提示：拥塞算法非 bbr（跨国链路可能偏慢）';
-      hint.textContent='订阅功能 · 免费版可复制命令自行执行';
-      fix.style.display=''; fix.innerHTML='<svg class="i sm"><use href="#i-bolt"/></svg>一键修复';
-      re.className='btn ghost sm'; re.innerHTML='<svg class="i sm"><use href="#i-search"/></svg>重新体检';
-      row.innerHTML='<div class="n" style="background:#fef3c7;color:#b45309">!</div><div style="flex:1"><b>L7 性能</b> · 丢包 1.2% · 吞吐 18.6 MB/s · 拥塞算法 cubic（建议 bbr）<div style="font-size:12px;color:#6b7280;margin-top:3px">修复命令：modprobe tcp_bbr &amp;&amp; sysctl -w net.ipv4.tcp_congestion_control=bbr（可复制自行执行）</div></div><span style="font-size:12px;color:#b45309">可优化</span>';
+      title.textContent = '全部通过 · 链路健康';
+      desc.textContent = rep.layers.length + ' 层检查完成，未发现问题';
     }
+    meta.textContent = '服务器：' + rep.serverName + '（' + rep.host + '）· ' + scope
+      + ' · 耗时 ' + (rep.elapsedMs/1000).toFixed(1) + 's';
+    hint.textContent = rep.current ? '免费版可复制修复命令自行执行' : '切到此线路后可跑完整七层体检';
+    fix.style.display = 'none'; // v0.2 无自动修复，避免假按钮
+    re.disabled = false;
+    re.className = 'btn ghost sm';
+    re.innerHTML = '<svg class="i sm"><use href="#i-search"/></svg>重新体检';
+
+    document.getElementById('docLayers').innerHTML =
+      rep.layers.map(doctorLayerRow).join('');
+    document.getElementById('docLog').textContent =
+      (rep.log && rep.log.length ? rep.log.join('\n') : '（本次体检无探测日志）')
+      + '\n[结论] 得分 ' + rep.score + ' · ' + rep.checkedAt;
   }
-  function fixAll(){
-    var btn=document.getElementById('fixBtn');
-    btn.disabled=true; btn.textContent='修复中…';
-    setTimeout(function(){
-      btn.disabled=false; docFixed=true; renderDoctor();
-      document.getElementById('docMeta').textContent='刚刚完成修复 · 已重新验证 7 层';
-    }, 1200);
+
+  /* 找体检目标：指定 id > 当前连接线路 > 清单第一台 */
+  function doctorTarget(explicitId){
+    if(explicitId) return Promise.resolve(explicitId);
+    return DukouAPI.proxyStatus().then(function(st){
+      if(st && st.connected && st.serverId) return st.serverId;
+      return DukouAPI.listServers().then(function(list){
+        if(list && list.length) return list[0].id;
+        throw new Error('还没有服务器，先到「网络配置」页部署一台');
+      });
+    });
   }
-  function runCheck(){
-    var re=document.getElementById('reBtn');
-    re.disabled=true; re.textContent='⏳ 体检中…';
-    setTimeout(function(){
-      re.disabled=false; renderDoctor();
-      document.getElementById('docMeta').textContent='刚刚完成体检 · 7 层全部执行';
-    }, 1400);
+
+  function runCheck(serverId){
+    var re=document.getElementById('reBtn'), fix=document.getElementById('fixBtn');
+    re.disabled=true; re.textContent='⏳ 体检中…'; fix.style.display='none';
+    _lastDoctorTarget = serverId || _lastDoctorTarget;
+    doctorTarget(_lastDoctorTarget)
+      .then(function(id){ return DukouAPI.doctor(id); })
+      .then(renderDoctorReport)
+      .catch(function(e){
+        re.disabled=false; re.textContent='一键体检';
+        document.getElementById('docLayers').innerHTML='';
+        document.getElementById('docLog').textContent='体检失败：' + e.message;
+        toast(e.message);
+      });
+  }
+
+  /* 导出诊断日志：复制到剪贴板，脱敏只含探测结论 */
+  function exportDoctorLog(){
+    if(!_lastDoctorReport){ toast('还没有体检结果可导出'); return; }
+    var text = '渡口诊断报告 · ' + _lastDoctorReport.serverName + '（' + _lastDoctorReport.host + '）\n'
+      + '时间：' + _lastDoctorReport.checkedAt + ' · 得分：' + _lastDoctorReport.score + '\n\n'
+      + _lastDoctorReport.layers.map(function(l){
+          return '[' + l.id + ' ' + l.name + '] ' + l.status.toUpperCase() + ' ' + l.summary;
+        }).join('\n') + '\n\n' + (_lastDoctorReport.log || []).join('\n');
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(
+        function(){ toast('诊断报告已复制到剪贴板'); },
+        function(){ toast('复制失败，请手动选择日志文本'); });
+    } else { toast('当前环境不支持剪贴板，请手动复制日志'); }
   }
 
   /* 通用弹窗 / 轻提示 / 跳转官网说明 */
@@ -1555,9 +1606,11 @@ window.addEventListener('keydown',function(e){
     openModal('tutModal');
   }
   /* 非当前线路：服务器体检 */
-  function serverCheck(name){
-    document.getElementById('srvCheckName').textContent=name;
-    openModal('srvCheckModal');
+  /* 服务器页「服务器体检」：直接跑真实体检并跳到健康诊断页展示。
+     非当前线路时后端自动只跑 L1~L4（服务端体检），报告里会写明口径。 */
+  function serverCheck(id, name){
+    nav('doctor');
+    runCheck(id);
   }
   /* 设置：更新通道与安装包 */
   function setChannel(el,name){
@@ -1689,7 +1742,7 @@ window.addEventListener('keydown',function(e){
           + (s.lastCheck ? ' · 最近体检 ' + s.lastCheck : '') + '</div></div>'
           + '<div class="ops">'
           + '<button class="btn sm" onclick="switchTo(' + i + ')">切到此线路</button>'
-          + '<button class="btn sm ghost" onclick="serverCheck(\'' + s.name + '\')">服务器体检</button>'
+          + '<button class="btn sm ghost" onclick="serverCheck(\'' + s.id + '\',\'' + (s.name||'').replace(/'/g,"\\'") + '\')">服务器体检</button>'
           + '<button class="btn sm ghost" onclick="openEdit(' + i + ')">编辑</button>'
           + '<button class="btn sm ghost" style="color:#b91c1c" onclick="removeServer(' + i + ')">删除</button>'
           + '</div></div>';
@@ -1984,7 +2037,6 @@ window.addEventListener('keydown',function(e){
   document.getElementById('aiWarn').style.display = 'block';
   fitHero();
   setTimeout(fitHero, 120);
-  renderDoctor();
 
   /* ── 启动拉取：连接状态 / 首次启动引导 / 服务器清单（§5.1 前端启动时先拉一次） ── */
   /* window.go 由 Wails runtime 异步注入，页面脚本执行时未必就绪——轮询等待后拉取。
@@ -1998,6 +2050,11 @@ window.addEventListener('keydown',function(e){
     refreshConn();
     DukouAPI.appInfo().then(function (info) {
       if (info && info.firstRun) openModal('obModal');
+      /* dev 自检钩子：-dev 版本自动跳健康诊断页并触发一次真实体检，
+         供自动化验证渲染链路；正式构建版本号不带 -dev，不会触发。 */
+      if (info && /-dev$/.test(info.version || '')) {
+        setTimeout(function(){ nav('doctor'); runCheck(); }, 1200);
+      }
     }).catch(function () {});
     renderServers();
   }, 40);

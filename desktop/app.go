@@ -5,8 +5,6 @@ package main
 import (
 	"context"
 	"sync"
-	"syscall"
-	"unsafe"
 
 	"fyne.io/systray"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -89,6 +87,12 @@ func (a *App) SwitchServer(serverID string) error {
 	return a.svc.SwitchServer(serverID)
 }
 
+// Doctor 分层体检指定服务器（健康诊断页 / 服务器页「体检」按钮）。
+// 调用可能耗时十几秒（SSH + 探测），前端按钮需置 loading。
+func (a *App) Doctor(serverID string) (app.DoctorReport, error) {
+	return a.svc.Doctor(serverID)
+}
+
 // AppInfo 版本/平台/首次启动标记（新手引导只弹一次）。
 func (a *App) AppInfo() (app.AppInfo, error) {
 	return a.svc.AppInfo()
@@ -129,28 +133,7 @@ func (a *App) showWindow() {
 	ensureMainWindowVisible()
 }
 
-var (
-	user32                        = syscall.NewLazyDLL("user32.dll")
-	procFindWindowW               = user32.NewProc("FindWindowW")
-	procIsWindowVisible           = user32.NewProc("IsWindowVisible")
-	procShowWindow                = user32.NewProc("ShowWindow")
-	procSetForegroundWindowUser32 = user32.NewProc("SetForegroundWindow")
-)
-
-// ensureMainWindowVisible 兜底：若主窗口仍不可见，直接 Win32 恢复显示并置前。
-func ensureMainWindowVisible() {
-	const swRestore = 9
-	hwnd, _, _ := procFindWindowW.Call(0, uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr("渡口 · 一键部署"))))
-	if hwnd == 0 {
-		return
-	}
-	if vis, _, _ := procIsWindowVisible.Call(hwnd); vis != 0 {
-		return // runtime 已成功，不动
-	}
-	println("[tray] runtime 唤窗未生效，走 Win32 兜底")
-	procShowWindow.Call(hwnd, swRestore)
-	procSetForegroundWindowUser32.Call(hwnd)
-}
+var _ = struct{}{} // 平台专属 Win32 辅助见 win32_windows.go / win32_other.go
 
 // hideWindow 隐藏主窗口到托盘。
 func (a *App) hideWindow() {
