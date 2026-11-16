@@ -147,7 +147,17 @@ func Start(up Upstream, o Options, fetch Fetcher) (Status, error) {
 		stopProcess()
 		return Status{}, fmt.Errorf("保存代理状态失败，已放弃修改系统代理: %w", err)
 	}
-	if err := applySystemProxy(httpPort); err != nil {
+	// 分流模式（§四）：生成 PAC 脚本 → 系统代理指过去。
+	// PAC 文件必须先于 AutoConfigURL 存在，否则 WinINet 加载失败，
+	// 部分浏览器会静默回落成直连——看起来一切正常，实际上全走直连。
+	_, pacURL, err := WritePAC(o, httpPort)
+	if err != nil {
+		_ = restoreSystemProxy(st)
+		stopProcess()
+		_ = clearState(o)
+		return Status{}, err
+	}
+	if err := applySystemProxyPAC(pacURL, httpPort); err != nil {
 		_ = restoreSystemProxy(st)
 		stopProcess()
 		_ = clearState(o)
@@ -208,6 +218,7 @@ func Stop(o Options) error {
 	if err := restoreSystemProxy(st); err != nil {
 		return err
 	}
+	RemovePAC(o)
 	return clearState(o)
 }
 
@@ -223,7 +234,9 @@ func Current(o Options) (Status, error) {
 		return Status{}, nil
 	}
 
-	alive := processAlive(st.PID) && systemProxyPointsTo(st.LocalPort)
+	// 存活判定：PAC 分流模式下注册表里没有 ProxyServer=本机端口，
+	// 要额外认 AutoConfigURL 指向我们的 PAC 文件。
+	alive := processAlive(st.PID) && (systemProxyPointsTo(st.LocalPort) || SystemPACIsOurs(o))
 	if !alive {
 		// 快照还在但链路已断：上次多半是崩溃/强杀/断电。
 		// 这时候不能假装「未连接」——系统代理可能还指着死端口，

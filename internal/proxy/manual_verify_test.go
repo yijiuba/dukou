@@ -72,9 +72,26 @@ func TestManualLifecycle(t *testing.T) {
 	}
 	t.Logf("连接成功：本地 %d，出口 %s，往返 %d ms", st.LocalPort, st.EgressIP, st.LatencyMS)
 
-	// 系统代理必须真的指向我们的端口，而不是只写了快照
-	if !systemProxyPointsTo(st.LocalPort) {
-		t.Errorf("注册表里的系统代理没有指向 127.0.0.1:%d", st.LocalPort)
+	// 系统代理必须真的被接管：PAC 模式下看 AutoConfigURL，
+	// 而不是固定代理的 ProxyServer（那个值保持用户原样作兜底）。
+	if !SystemPACIsOurs(o) {
+		t.Error("注册表 AutoConfigURL 未指向本工具的 PAC 文件")
+	}
+
+	// PAC 分流模式：AutoConfigURL 必须指向本工具生成的脚本，
+	// 且 ProxyEnable 不再是我们写的 1（PAC 优先级高于固定代理，
+	// 保留用户原来的固定代理当兜底）。
+	pacPath, pacURL, err := WritePAC(o, st.LocalPort)
+	if err != nil {
+		t.Fatalf("写 PAC 失败: %v", err)
+	}
+	if got := pacURL; !SystemPACIsOurs(o) {
+		t.Errorf("AutoConfigURL 未指向 PAC 文件 %s", got)
+	} else {
+		t.Logf("系统 PAC 已接管: %s", pacURL)
+	}
+	if _, err := os.Stat(pacPath); err != nil {
+		t.Errorf("PAC 文件不存在: %v", err)
 	}
 
 	// Current 应当读到同样的状态

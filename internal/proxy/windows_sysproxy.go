@@ -67,7 +67,7 @@ func readSystemProxy() (state, error) {
 	return s, nil
 }
 
-// applySystemProxy 把系统代理指向本机端口。
+// applySystemProxy 把系统代理指向本机端口（固定代理模式）。
 func applySystemProxy(port int) error {
 	k, err := registry.OpenKey(registry.CURRENT_USER, inetKey, registry.SET_VALUE|registry.QUERY_VALUE)
 	if err != nil {
@@ -98,6 +98,40 @@ func applySystemProxy(port int) error {
 		return fmt.Errorf("写入直连列表失败: %w", err)
 	}
 
+	refreshInet()
+	return nil
+}
+
+// applySystemProxyPAC 用 PAC 脚本接管系统代理（分流模式）。
+//
+// 同时写固定代理（ProxyServer=本机端口）作兜底：不同客户端对
+// file:// PAC 的支持不一致——Chromium 系浏览器/WinINet 会加载 PAC
+// （国内直连、国外走代理），.NET 系客户端实测会忽略 file:// PAC
+// 直接回落到 ProxyServer。兜底指向我们自己正在运行的 gost，
+// 任何客户端至少保持「全量走代理」可用，而不是直连裸奔或回落到
+// 用户已停用的旧代理。
+func applySystemProxyPAC(autoconfigURL string, port int) error {
+	k, err := registry.OpenKey(registry.CURRENT_USER, inetKey, registry.SET_VALUE|registry.QUERY_VALUE)
+	if err != nil {
+		k, _, err = registry.CreateKey(registry.CURRENT_USER, inetKey, registry.SET_VALUE|registry.QUERY_VALUE)
+		if err != nil {
+			return fmt.Errorf("打不开 Internet 设置注册表（可能被安全软件拦截）: %w", err)
+		}
+	}
+	defer k.Close()
+
+	if err := k.SetStringValue("AutoConfigURL", autoconfigURL); err != nil {
+		return fmt.Errorf("写入 PAC 配置失败: %w", err)
+	}
+	if err := k.SetDWordValue("ProxyEnable", 1); err != nil {
+		return fmt.Errorf("开启系统代理失败: %w", err)
+	}
+	if err := k.SetStringValue("ProxyServer", fmt.Sprintf("127.0.0.1:%d", port)); err != nil {
+		return fmt.Errorf("写入代理地址失败: %w", err)
+	}
+	if err := k.SetStringValue("ProxyOverride", proxyBypass); err != nil {
+		return fmt.Errorf("写入直连列表失败: %w", err)
+	}
 	refreshInet()
 	return nil
 }

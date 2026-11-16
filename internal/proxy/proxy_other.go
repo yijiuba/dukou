@@ -34,3 +34,6 @@ func Current(o Options) (Status, error) { return Status{}, nil }
 func EnsureBinary(o Options, fetch Fetcher) (string, error) {
 	return "", ErrNotImplemented
 }
+
+// systemPACIsOurs 在非 Windows 平台恒为 false（PAC 分流仅 Windows 实现）。
+func SystemPACIsOurs(o Options) bool { return false }

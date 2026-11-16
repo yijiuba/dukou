@@ -323,26 +323,38 @@ func (s *Service) docL7Perf(log *[]string) DoctorLayer {
 	}
 }
 
-// docL8Split 分流层：检查国内站点是否直连。
-// 分流能力上线前，所有流量都经代理——如实报告，不装作通过。
+// docL8Split 分流层：检查 PAC 是否启用、国内站点直连是否正常。
+// Go 的 HTTP 客户端不走系统代理，所以 probeDirect 恰好模拟了
+// PAC 返回 DIRECT 时浏览器会走的同一条网络路径。
 func (s *Service) docL8Split(log *[]string) DoctorLayer {
-	// 探测路径：不走系统代理直接访问 baidu（Go 默认不走系统代理，
-	// 所以这个请求就是"直连路径"的真实表现）
 	code := probeDirect("https://www.baidu.com")
 	*log = append(*log, "[L8] direct https://www.baidu.com -> "+code)
+
+	splitOn := proxy.SystemPACIsOurs(s.proxyOptions())
 	if code == "000" {
-		return DoctorLayer{
+		l := DoctorLayer{
 			ID: "L8", Name: "分流", Status: "warn",
 			Summary: "国内站点直连不通（baidu 返回 000）",
-			Explain: "分流未启用时所有流量都走代理，国内访问反而绕路。若直连也不通，" +
-				"请检查本机基础网络",
+		}
+		if splitOn {
+			l.Summary = "分流已启用（PAC），但国内直连路径不通：baidu 返回 000"
+			l.Explain = "浏览器访问国内站点会失败。请检查本机基础网络（WiFi/有线、DNS）"
+		} else {
+			l.Explain = "分流未启用时所有流量都走代理，国内访问反而绕路。" +
+				"若直连也不通，请检查本机基础网络"
+		}
+		return l
+	}
+	if splitOn {
+		return DoctorLayer{
+			ID: "L8", Name: "分流", Status: "pass",
+			Summary: "分流已启用（PAC）· 国内直连正常（baidu HTTP " + code + "）· 国外走代理",
 		}
 	}
 	return DoctorLayer{
 		ID: "L8", Name: "分流", Status: "warn",
 		Summary: "国内站点可直连，但分流未启用：当前所有流量都经代理出国再回来",
-		Explain: "国内访问（淘宝/百度等）绕道海外会明显变慢且消耗服务器流量。" +
-			"PAC 分流能力在后续版本提供后，这里会变成「国内直连 · 国外走代理」的自动分流检查",
+		Explain: "国内访问（淘宝/百度等）绕道海外会明显变慢且消耗服务器流量",
 	}
 }
 
