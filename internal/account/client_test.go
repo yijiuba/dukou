@@ -19,9 +19,14 @@ func newTestClient(t *testing.T, h http.HandlerFunc) *Client {
 // 每个请求都必须带应用标识头，否则服务端一律拒绝。
 func TestRequestsCarryAppKey(t *testing.T) {
 	var missing int32
+	var missingOrigin int32
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("x-wb-webapp-access-key") != "wbpk_test" {
 			atomic.AddInt32(&missing, 1)
+		}
+		// 平台要求所有请求带白名单内 Origin（token 的 azp 绑定它），见 client.go 注释
+		if r.Header.Get("Origin") == "" {
+			atomic.AddInt32(&missingOrigin, 1)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"verification_id": "vid", "is_user": false})
 	})
@@ -30,6 +35,9 @@ func TestRequestsCarryAppKey(t *testing.T) {
 	}
 	if missing != 0 {
 		t.Fatalf("有 %d 个请求没带 x-wb-webapp-access-key", missing)
+	}
+	if missingOrigin != 0 {
+		t.Fatalf("有 %d 个请求没带 Origin 头", missingOrigin)
 	}
 }
 

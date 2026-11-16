@@ -386,7 +386,13 @@ func (c *Client) doOnce(method, path string, body any, out any, auth bool) error
 	if err != nil {
 		return fmt.Errorf("构造请求失败：%v", err)
 	}
-	// 原生客户端不需要 Origin：平台只对浏览器做跨站校验（已实测，见契约附录）
+	// 平台网关对浏览器做跨站校验，但对原生客户端有一条关键约束（2026-11-16 实测）：
+	// 认证端点（signin/signup/token）与所有带 token 的数据请求必须携带一个
+	// 白名单内的 Origin 头，且 token 的 azp 会绑定该 Origin——裸发（无 Origin）
+	// 一律报 401 "the session is invalid, expired or issued for another client"。
+	// 因此原生客户端统一带「本站数据面域名」作为 Origin：它在白名单内，
+	// 且全链路（发码→校验→登录→RPC→刷新）用同一个值，azp 始终匹配。
+	req.Header.Set("Origin", c.cfg.BaseURL)
 	req.Header.Set("x-wb-webapp-access-key", c.cfg.PublishableKey)
 	req.Header.Set("Accept", "application/json")
 	if body != nil {
