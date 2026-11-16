@@ -83,6 +83,14 @@
     plans: function () { return call('Plans'); },
     claimTrial: function () { return call('ClaimTrial'); },
     orders: function () { return call('Orders'); },
-    referral: function () { return call('Referral'); }
+    referral: function () { return call('Referral'); },
+
+    /* ── AI 工具（v0.3，真接口）：检测 / 安装 / 启动 / 卸载 ──
+       安装与卸载是长任务，进度经 ai:progress 事件推送（见 50-events.js）。
+       返回值 { installed, version, binPath, changed, note }，note 是给人看的一句话。 */
+    aiTools: function () { return call('AITools'); },
+    aiToolInstall: function (id) { return call('AIToolInstall', [id]); },
+    aiToolUninstall: function (id) { return call('AIToolUninstall', [id]); },
+    aiToolLaunch: function (id) { return call('AIToolLaunch', [id]); }
   };
 })();

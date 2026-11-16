@@ -16,6 +16,7 @@
   bind('proxy:status', 'onProxyStatus');   // 连接状态变化（M2 起有实质推送）
   bind('doctor:event', 'onDoctorEvent');   // 体检逐层推进（M2）
   bind('update:available', 'onUpdateAvailable'); // 启动后发现新版本
+  bind('ai:progress', 'onAIProgress');           // AI 工具安装/卸载进度（v0.3），载荷 {id,stage,msg}
 })();
 
 /* 加载账号界面脚本（js/60-account.js）。

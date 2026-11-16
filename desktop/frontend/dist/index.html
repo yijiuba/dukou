@@ -1312,7 +1312,9 @@ window.addEventListener('keydown',function(e){
   function nav(p){ document.querySelectorAll('.nav-item').forEach(function(n){n.classList.toggle('active', n.dataset.page===p);});
     document.querySelectorAll('.page').forEach(function(pg){pg.classList.remove('active');});
     document.getElementById('page-'+p).classList.add('active');
-    if(p==='home'){ fitHero(); } }
+    if(p==='home'){ fitHero(); }
+    /* 进 AI 工具页就现场检测：用户可能在终端里自己装过/卸过，缓存会让界面和事实脱节 */
+    if(p==='ai' && typeof renderAITools==='function'){ renderAITools(); } }
   document.querySelectorAll('.nav-item').forEach(function(n){ n.onclick=function(){nav(n.dataset.page);}; });
   /* 首页自适应：连接按钮随可用高度缩放 */
   function fitHero(){
@@ -1600,8 +1602,123 @@ window.addEventListener('keydown',function(e){
     }
     if(typeof fitHero==='function') setTimeout(fitHero,60);
   }
-  /* AI 工具：v0.2 起安装/启动/卸载一律走真接口（见 js/20-api.js 的 aiTools），
-     不再有「toast 一下就当装好了」的演示实现。 */
+  /* ── AI 工具：检测 / 安装 / 启动 / 卸载（真接口 App.AITools 等） ──
+     状态全部来自本机真实检测；安装与卸载的进度经 ai:progress 事件推来。
+     没有「toast 一下就当装好了」的路径：失败会把后端的原话显示出来。 */
+  var _aiStates = {}, _aiBusy = {};
+
+  function renderAITools() {
+    if (typeof DukouAPI === 'undefined' || !DukouAPI.hasBackend()) {
+      ['codex', 'claude'].forEach(function (id) {
+        var env = document.getElementById('aiEnv-' + id);
+        if (env) env.textContent = '后端未就绪：请在桌面 App 内查看真实检测结果';
+        var side = document.getElementById('aiSide-' + id);
+        if (side) side.innerHTML = '<div class="opt disabled">需要桌面版</div>';
+      });
+      return;
+    }
+    DukouAPI.aiTools().then(function (list) {
+      (list || []).forEach(function (st) { _aiStates[st.id] = st; });
+      paintAITools();
+    }).catch(function (e) {
+      ['codex', 'claude'].forEach(function (id) {
+        var env = document.getElementById('aiEnv-' + id);
+        if (env) env.textContent = '检测失败：' + (e.message || e);
+      });
+    });
+  }
+
+  function paintAITools() {
+    Object.keys(_aiStates).forEach(function (id) {
+      var st = _aiStates[id];
+      var badge = document.getElementById('aiBadge-' + id);
+      var env = document.getElementById('aiEnv-' + id);
+      var side = document.getElementById('aiSide-' + id);
+      if (!badge || !env || !side) return;
+
+      var e = st.env || {};
+      var osName = { windows: 'Windows', darwin: 'macOS', linux: 'Linux' }[e.os] || e.os || '未知系统';
+      var parts = [osName + ' · ' + (e.arch || '未知架构')];
+      if (e.nodeVersion) {
+        parts.push('Node ' + e.nodeVersion + (e.nodeOk ? ' ✓' : '（需 ≥18）'));
+      } else {
+        parts.push('Node 未安装');
+      }
+      if (e.npmVersion) parts.push('npm ' + e.npmVersion);
+      parts.push(e.proxy ? '代理已连接' : '代理未连接');
+      env.textContent = parts.join(' · ');
+
+      if (st.installed) {
+        badge.textContent = '已安装 ' + (st.version || '版本未知');
+        badge.style.background = '#ecfdf5';
+        badge.style.color = '#047857';
+      } else if (st.canInstall) {
+        badge.textContent = '未安装';
+        badge.style.background = '#f1f5f9';
+        badge.style.color = '#64748b';
+      } else {
+        badge.textContent = '环境不满足';
+        badge.style.background = '#fef2f2';
+        badge.style.color = '#b91c1c';
+      }
+
+      if (_aiBusy[id]) {
+        side.innerHTML = '<div class="opt disabled">' + _aiBusy[id] + '</div>';
+        return;
+      }
+
+      var html = '';
+      if (st.installed) {
+        html += '<div class="opt primary" onclick="aiRun(\'launch\',\'' + id + '\')">▶ 启动</div>';
+        html += '<div class="opt" onclick="aiRun(\'uninstall\',\'' + id + '\')">卸载</div>';
+        html += '<div class="tool-side-note">装于 ' + (st.binPath || '未知位置') + '</div>';
+      } else if (st.canInstall) {
+        html += '<div class="opt primary" onclick="aiRun(\'install\',\'' + id + '\')">一键安装</div>';
+        html += '<div class="tool-side-note">' + (e.proxy ? '经本机代理下载安装' : '未连接代理，下载可能失败') + '</div>';
+      } else {
+        html += '<div class="opt disabled">无法安装</div>';
+        html += '<div class="tool-side-note">' + (st.blocked || '环境不满足') + '</div>';
+      }
+      side.innerHTML = html;
+    });
+  }
+
+  /* 后端进度推送：{ id, stage, msg } */
+  window.onAIProgress = function (ev) {
+    if (!ev || !ev.id || !ev.msg) return;
+    _aiBusy[ev.id] = ev.msg;
+    paintAITools();
+  };
+
+  function aiRun(op, id) {
+    if (typeof DukouAPI === 'undefined' || !DukouAPI.hasBackend()) {
+      toast('后端未就绪：请在桌面 App 内操作'); return;
+    }
+    if (_aiBusy[id]) { toast('正在' + _aiBusy[id] + '，请稍候'); return; }
+
+    var name = (_aiStates[id] && _aiStates[id].name) || id;
+    _aiBusy[id] = { install: '安装中…', uninstall: '卸载中…', launch: '启动中…' }[op] || '处理中…';
+    paintAITools();
+
+    var p;
+    if (op === 'install') p = DukouAPI.aiToolInstall(id);
+    else if (op === 'uninstall') p = DukouAPI.aiToolUninstall(id);
+    else p = DukouAPI.aiToolLaunch(id);
+
+    p.then(function (res) {
+      // note 是后端写好的完整一句话（含「首次登录要你自己点」这类提醒），直接显示
+      toast((res && res.note) || (name + ' 完成'));
+      return DukouAPI.aiTools();
+    }).then(function (list) {
+      (list || []).forEach(function (st) { _aiStates[st.id] = st; });
+    }).catch(function (e) {
+      toast(name + ' 失败：' + ((e && e.message) || e));
+    }).then(function () {
+      delete _aiBusy[id];
+      paintAITools();
+    });
+  }
+
   function openTutorial(name){
     document.getElementById('tutTitle').textContent=name+' 上手指南';
     openModal('tutModal');

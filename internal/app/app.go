@@ -38,6 +38,10 @@ type Service struct {
 	// 本机代理驱动。nil 表示用真实实现（internal/proxy）；
 	// 单测注入 fake 以覆盖切换线路的顺序与回滚，见 proxy_driver.go。
 	pdrv proxyDriver
+
+	// AI 工具的安装/卸载互斥：npm 全局目录是共享的，
+	// 并发跑两个 npm install 会互相锁住，界面表现为卡死无进度。
+	muAI sync.Mutex
 }
 
 // New 创建服务并打开本地存储。configDir 为空时用系统默认用户配置目录。

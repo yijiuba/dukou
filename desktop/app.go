@@ -13,6 +13,7 @@ import (
 	"fyne.io/systray"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/yijiuba/dukou/internal/account"
+	"github.com/yijiuba/dukou/internal/aitool"
 	"github.com/yijiuba/dukou/internal/app"
 	"github.com/yijiuba/dukou/internal/deploy"
 	"github.com/yijiuba/dukou/internal/store"
@@ -286,4 +287,30 @@ func (a *App) quitApp() {
 		systray.Quit() // 先收托盘，再让 Wails 退出
 		runtime.Quit(a.ctx)
 	}
+}
+
+// ── AI 工具（v0.3 起接管 AI 工具页：检测 / 安装 / 启动 / 卸载） ──
+//
+// 四个方法都是转发，编排在 internal/app/aitools.go。
+// 安装与卸载是长任务，进度经 ai:progress 事件推给界面，
+// 返回值只在结束时给最终结果。
+
+// AITools 返回 Codex / Claude Code 的真实检测状态。
+func (a *App) AITools() ([]aitool.State, error) {
+	return a.svc.AITools()
+}
+
+// AIToolInstall 安装指定工具（id: codex | claude）。
+func (a *App) AIToolInstall(id string) (aitool.Result, error) {
+	return a.svc.AIToolInstall(id)
+}
+
+// AIToolUninstall 卸载指定工具。
+func (a *App) AIToolUninstall(id string) (aitool.Result, error) {
+	return a.svc.AIToolUninstall(id)
+}
+
+// AIToolLaunch 在新终端窗口启动指定工具。
+func (a *App) AIToolLaunch(id string) (aitool.Result, error) {
+	return a.svc.AIToolLaunch(id)
 }
