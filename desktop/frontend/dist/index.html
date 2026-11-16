@@ -409,6 +409,13 @@ window.addEventListener('wheel',function(e){ if(e.ctrlKey) e.preventDefault(); }
 window.addEventListener('keydown',function(e){
   if(e.ctrlKey && (e.key==='+'||e.key==='-'||e.key==='='||e.key==='0')) e.preventDefault();
 });
+/* 页面快捷键：Alt+1..9 直达九页（与左侧导航顺序一致） */
+var PAGE_KEYS=['home','network','ai','servers','doctor','shop','svc','me','set'];
+window.addEventListener('keydown',function(e){
+  if(!e.altKey || e.ctrlKey || e.shiftKey) return;
+  var n=parseInt(e.key,10);
+  if(n>=1 && n<=PAGE_KEYS.length){ e.preventDefault(); nav(PAGE_KEYS[n-1]); }
+});
 </script>
 </head>
 <body>
@@ -485,7 +492,7 @@ window.addEventListener('keydown',function(e){
         </div>
 
         <div class="card conn-card">
-          <div class="route-chip"><svg class="i sm"><use href="#i-globe"/></svg> 新加坡 · 腾讯云轻量<a href="javascript:void(0)" onclick="go('servers')">切换</a></div>
+          <div class="route-chip"><svg class="i sm"><use href="#i-globe"/></svg> 新加坡 · 腾讯云轻量<a href="javascript:void(0)" onclick="nav('servers')">切换</a></div>
           <div class="connect-wrap">
             <div class="power" id="powerBtn" onclick="toggleConn()"><svg viewBox="0 0 24 24" width="40%" height="40%" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3.2v8.6"/><path d="M6.3 6.6a8.2 8.2 0 1 0 11.4 0"/></svg></div>
             <div class="conn-state" id="connState">未连接 · 当前为直连（国内访问正常）</div>
@@ -504,10 +511,10 @@ window.addEventListener('keydown',function(e){
         </div>
 
         <div class="quick">
-          <div class="q" onclick="go('network')"><div class="e"><svg class="i lg"><use href="#i-globe"/></svg></div><div><b>网络配置</b><span>添加 / 重新部署服务器</span></div></div>
-          <div class="q" onclick="go('servers')"><div class="e"><svg class="i lg"><use href="#i-server"/></svg></div><div><b>我的代理服务器</b><span>3 台 · 使用中：新加坡</span></div></div>
-          <div class="q" onclick="go('ai')"><div class="e"><svg class="i lg"><use href="#i-bot"/></svg></div><div><b>AI 工具</b><span>Codex / Claude 一键安装</span></div></div>
-          <div class="q" onclick="go('shop')"><div class="e"><svg class="i lg"><use href="#i-cart"/></svg></div><div><b>还没有服务器？</b><span>海外服务器 ¥99/年起</span></div></div>
+          <div class="q" onclick="nav('network')"><div class="e"><svg class="i lg"><use href="#i-globe"/></svg></div><div><b>网络配置</b><span>添加 / 重新部署服务器</span></div></div>
+          <div class="q" onclick="nav('servers')"><div class="e"><svg class="i lg"><use href="#i-server"/></svg></div><div><b>我的代理服务器</b><span>3 台 · 使用中：新加坡</span></div></div>
+          <div class="q" onclick="nav('ai')"><div class="e"><svg class="i lg"><use href="#i-bot"/></svg></div><div><b>AI 工具</b><span>Codex / Claude 一键安装</span></div></div>
+          <div class="q" onclick="nav('shop')"><div class="e"><svg class="i lg"><use href="#i-cart"/></svg></div><div><b>还没有服务器？</b><span>海外服务器 ¥99/年起</span></div></div>
         </div>
       </div>
 
@@ -520,7 +527,7 @@ window.addEventListener('keydown',function(e){
           <span class="arrow">›</span>
           <span class="fs off">② 装 AI 工具</span>
           <span class="fs-note">网络通了再装 AI：下载与登录都要走这条代理</span>
-          <button class="btn sm" onclick="go('ai')">去 AI 工具 ›</button>
+          <button class="btn sm" onclick="nav('ai')">去 AI 工具 ›</button>
         </div>
         <div class="card">
           <h3>服务器接入方式</h3>
@@ -530,10 +537,10 @@ window.addEventListener('keydown',function(e){
           </div>
           <div id="net-ssh">
             <div class="form-grid">
-              <div class="field"><label>服务器 IP</label><input value="47.xx.xx.10（演示）"></div>
-              <div class="field"><label>SSH 端口</label><input value="22"></div>
-              <div class="field"><label>账号</label><input value="root"></div>
-              <div class="field"><label>密码 / 私钥</label><input type="password" value="********"></div>
+              <div class="field"><label>服务器 IP</label><input id="depHost" placeholder="例如 1.2.3.4 或 example.com"></div>
+              <div class="field"><label>SSH 端口</label><input id="depPort" value="22"></div>
+              <div class="field"><label>账号</label><input id="depUser" value="root"></div>
+              <div class="field"><label>密码 / 私钥</label><input id="depPass" type="password" placeholder="服务器登录密码"></div>
             </div>
           </div>
           <div id="net-ak" style="display:none">
@@ -545,76 +552,32 @@ window.addEventListener('keydown',function(e){
             </div>
             <p style="font-size:12px;color:#6b7280;margin-top:10px">AccessKey 仅存本机，加密保存。可自动完成：购买引导 → 创建实例 → 放行安全组（消灭手动开 8443 这一步）。</p>
           </div>
-          <div style="margin-top:16px"><button class="btn" onclick="startDeploy()">开始部署</button> <button class="btn ghost" onclick="openModal('dryModal')">--dry-run 先看计划</button></div>
+          <div style="margin-top:16px"><button class="btn" id="depBtn" onclick="startDeploy()">开始部署</button> <button class="btn ghost" onclick="openModal('dryModal')">--dry-run 先看计划</button></div>
           <div class="mini-note" style="margin-top:9px">dry-run 只做只读探测，不装任何东西、不改服务器配置——先看清楚要动哪些东西，再决定是否正式部署。</div>
           <div class="mini-note" style="margin-top:6px"><svg class="i sm" style="color:#0f766e"><use href="#i-chat"/></svg>第一次用云服务器？找不到 IP / 密码 / AccessKey？<a href="javascript:void(0)" onclick="openAssistant()" style="color:#0f766e;text-decoration:none">问左侧导航底部「小渡助手」 ›</a></div>
         </div>
-        <div class="card">
-          <h3>部署流水线（演示）</h3>
-          <div class="steps">
-            <div class="step done"><div class="n">✓</div><div><b>连接服务器</b><br><span style="font-size:12px;color:#6b7280">SSH 登录成功 · TencentOS / Ubuntu 24.04</span></div></div>
-            <div class="step done"><div class="n">✓</div><div><b>配置服务端</b><br><span style="font-size:12px;color:#6b7280">gost 已安装 · BBR 已回读确认 · 安全组 8443 已放行（AccessKey 自动）</span></div></div>
-            <div class="step done"><div class="n">✓</div><div><b>配置本机</b><br><span style="font-size:12px;color:#6b7280">本地代理服务就绪（由 App 托管，不设开机自启）</span></div></div>
-            <div class="step run"><div class="n">4</div><div><b>出口验证</b><br><span style="font-size:12px;color:#6b7280">带凭据请求中… 期望返回服务器 IP</span></div></div>
-          </div>
+        <div class="card" id="depCard" style="display:none">
+          <h3>部署进度</h3>
+          <div class="steps" id="depSteps"></div>
+          <div class="mini-note" id="depLog" style="display:none;margin-top:10px;max-height:132px;overflow-y:auto;white-space:pre-wrap;word-break:break-all"></div>
         </div>
       </div>
 
-      <!-- 我的代理服务器（多服务器管理） -->
+      <!-- 我的代理服务器（多服务器管理，清单由 Go ListServers 真数据渲染） -->
       <div class="page" id="page-servers">
         <div class="page-head"><h2>我的代理服务器</h2>
           <div class="sub">多台服务器统一管理：每台独立保存配置，切换即换出口线路，互不干扰</div></div>
 
-        <div class="card" style="border-color:#99f6e4;background:linear-gradient(180deg,#f6fdfb,#fff)">
-          <div class="srv" style="border-bottom:none;padding-top:0">
-            <div class="flag" style="background:#0d9488;color:#fff">SG</div>
-            <div class="meta">
-              <b>新加坡 · 腾讯云轻量</b> <span class="pill on">使用中</span>
-              <div class="mline">47.xx.xx.10 · 2核2G · 东京/新加坡区 · 延迟 63ms · 今日 1.2GB / 1T</div>
-              <div class="mline">部署完成于 2026-11-10 · 最近体检 82 分（1 项可优化）</div>
-            </div>
-            <div class="ops">
-              <button class="btn sm ghost" onclick="go('doctor')">体检</button>
-              <button class="btn sm ghost" disabled title="使用中的服务器不可编辑：保存会立即重载代理配置、中断当前连接" style="color:#c3c9d2;background:#f8fafc;border-color:#eef0f3;cursor:not-allowed">编辑</button>
-              <button class="btn sm ghost" onclick="go('set')">备份</button>
-            </div>
-          </div>
-          <div class="mini-note" style="margin-top:10px"><svg class="i sm" style="color:#b45309"><use href="#i-lock"/></svg>使用中的服务器暂不支持编辑：保存会立即重载配置、中断当前连接。要改配置请先切到其它线路，或断开连接后再编辑。</div>
-        </div>
-
         <div class="card">
-          <h3>其他服务器（2）</h3>
-          <div class="srv lockable">
-            <div class="flag">JP</div>
-            <div class="meta">
-              <b>东京 · Vultr</b> <span class="pill off">备用</span>
-              <div class="mline">139.xx.xx.22 · $6/月 · 延迟 38ms · 上次体检健康</div>
-            </div>
-            <div class="ops">
-              <button class="btn sm" onclick="switchTo('东京 · Vultr')">切到此线路</button>
-              <button class="btn sm ghost" onclick="serverCheck('东京 · Vultr')">服务器体检</button>
-              <button class="btn sm ghost" onclick="openEdit('东京 · Vultr','139.xx.xx.22','22','root','东京')">编辑</button>
-            </div>
-          </div>
-          <div class="srv lockable">
-            <div class="flag" style="background:#fef2f2;color:#b91c1c">US</div>
-            <div class="meta">
-              <b>洛杉矶 · 搬瓦工</b> <span class="pill err">SSH 超时</span>
-              <div class="mline">45.xx.xx.88 · CN2 GIA · 部署未完成（第 2 步失败）</div>
-            </div>
-            <div class="ops">
-              <button class="btn sm ghost" onclick="retryDeploy()">重试部署</button>
-              <button class="btn sm ghost" onclick="openEdit('洛杉矶 · 搬瓦工','45.xx.xx.88','22','root','洛杉矶')">编辑</button>
-              <button class="btn sm ghost" style="color:#b91c1c" onclick="toast('（演示）删除前会二次确认，并提醒该机器上的配置将一并移除')">删除</button>
-            </div>
-          </div>
+          <h3>服务器清单（<span id="srvCount">0</span>）</h3>
+          <div id="srvList"><div class="mini-note" style="padding:10px 0">清单加载中…</div></div>
           <div class="srv">
             <div class="flag" style="background:#f3f4f6;color:#6b7280">+</div>
             <div class="meta">
               <b>添加服务器</b>
               <div class="mline">SSH 密码 / 密钥 / AccessKey 三种方式均可</div>
             </div>
-            <div class="ops"><button class="btn sm" onclick="go('network')">去添加</button></div>
+            <div class="ops"><button class="btn sm" onclick="nav('network')">去添加</button></div>
           </div>
           <div class="lock-note"><svg class="i sm" style="color:#b45309"><use href="#i-lock"/></svg><b>订阅权益说明</b>：试用/订阅期间服务器数量不限；到期后仅保留 1 台可切换，其余进入只读（配置不删除，续费即恢复）。免费版不提供「一键切换」与「批量体检」。<a href="javascript:void(0)" id="lockDemoLink" onclick="toggleExpireDemo()" style="margin-left:8px;color:#0f766e">▶ 演示到期锁定状态</a></div>
         </div>
@@ -1003,7 +966,8 @@ window.addEventListener('keydown',function(e){
 </div>
 
 <!-- 新手引导（首次启动自动弹出；设置页可重看） -->
-<div class="modal-mask show" id="obModal">
+<!-- 新手引导：首次启动由 AppInfo.FirstRun 控制（读即消费，只弹一次），可从设置页重看 -->
+<div class="modal-mask" id="obModal">
   <div class="modal" style="width:520px">
     <!-- 第 1 步：欢迎 + 路径分叉 -->
     <div class="ob-pane on" id="ob1">
@@ -1104,13 +1068,7 @@ window.addEventListener('keydown',function(e){
     <div class="modal-head">部署计划预览（dry-run）</div>
     <div class="modal-body">
       <div class="mini-note" style="margin-bottom:12px">只做只读探测：登录服务器、读系统信息、查端口与权限。<b style="color:#111827">不装软件、不写配置、不重启服务。</b></div>
-      <h4>探测结果</h4>
-      <div class="m-list">
-        <div class="m-item"><span class="nm">SSH 22 端口可达 · 登录成功（root，sudo 可用）</span><span class="st ok">通过</span></div>
-        <div class="m-item"><span class="nm">系统 Ubuntu 24.04 LTS · x86_64 · 磁盘可用 19 GB</span><span class="st ok">通过</span></div>
-        <div class="m-item"><span class="nm">8443 端口空闲 · 现有防火墙规则 3 条</span><span class="st ok">通过</span></div>
-        <div class="m-item"><span class="nm">内核支持 tcp_bbr（可开启加速）</span><span class="st ok">通过</span></div>
-      </div>
+      <div class="mini-note" style="margin-bottom:12px;border-color:#99f6e4;background:#f0fdfa">M1 阶段部署流水线本身只做安全动作，失败即中止不留残留；<b>只读探测结果的实时展示在 M2 随体检模块上线</b>。下表是正式部署将要执行的全部动作。</div>
       <h4>正式部署将执行（预计 40~60 秒）</h4>
       <table class="m-table">
         <tr><th style="width:44px">序号</th><th>动作</th><th>写入位置</th></tr>
@@ -1118,7 +1076,7 @@ window.addEventListener('keydown',function(e){
         <tr><td>2</td><td>注册并启动系统服务</td><td>dukou-server.service</td></tr>
         <tr><td>3</td><td>开启 BBR 拥塞控制</td><td>/etc/sysctl.d/99-dukou.conf</td></tr>
         <tr><td>4</td><td>放行安全组 8443/TCP</td><td>云厂商安全组（需 AccessKey；纯 SSH 会提示手动放行）</td></tr>
-        <tr><td>5</td><td>本机写入代理与分流配置</td><td>~/.dukou/config.json</td></tr>
+        <tr><td>5</td><td>本机写入代理配置（App 托管本地代理）</td><td>用户配置目录 dukou/</td></tr>
       </table>
       <div class="modal-note"><b>不会做的事</b>：不改 SSH 端口、不装 Docker、不动已有 nginx、不重启服务器。若发行版不受支持，第 1 步就中止，不留残留。</div>
     </div>
@@ -1139,10 +1097,10 @@ window.addEventListener('keydown',function(e){
         <div class="field full"><label>服务器 IP / 域名</label><input id="edIp"></div>
         <div class="field"><label>SSH 端口</label><input id="edPort"></div>
         <div class="field"><label>账号</label><input id="edUser"></div>
-        <div class="field full"><label>密码 / 私钥</label><input type="password" value="********" id="edPass"></div>
-        <div class="field full"><label>标签</label><select id="edTag"><option>使用中</option><option>备用</option><option>停用</option></select></div>
+        <div class="field full"><label>密码 / 私钥</label><input type="password" id="edPass" placeholder="留空表示保持原密码不变"></div>
+        <div class="field full"><label>标签</label><select id="edTag" disabled title="状态由连接情况自动维护（M2 上线）"><option>自动维护</option></select></div>
       </div>
-      <div class="modal-note">点「保存并应用」才写入本机配置并重新连接；<b>不会重启远端服务</b>，也不影响正在使用的其他服务器。</div>
+      <div class="modal-note">改动保存在本机清单（servers.json），密码加密存储；<b>不会重启远端服务</b>。M2 上线连接后，修改会随下次连接生效。</div>
     </div>
     <div class="modal-foot">
       <button class="btn ghost sm" onclick="closeModal('editModal')">取消</button>
@@ -1232,7 +1190,7 @@ window.addEventListener('keydown',function(e){
     </div>
     <div class="modal-foot">
       <button class="btn ghost sm" onclick="closeModal('tutModal')">先看看</button>
-      <button class="btn sm" onclick="closeModal('tutModal');go('svc');toast('已跳到增值服务 · AI 出海课程包')">去课程包看完整版（¥19.9）</button>
+      <button class="btn sm" onclick="closeModal('tutModal');nav('svc');toast('已跳到增值服务 · AI 出海课程包')">去课程包看完整版（¥19.9）</button>
     </div>
   </div>
 </div>
@@ -1254,7 +1212,7 @@ window.addEventListener('keydown',function(e){
     </div>
     <div class="modal-foot">
       <button class="btn ghost sm" onclick="closeModal('srvCheckModal')">取消</button>
-      <button class="btn ghost sm" onclick="closeModal('srvCheckModal');toast('已切到该线路，正在跑完整七层体检…');go('doctor')">切到该线路再体检</button>
+      <button class="btn ghost sm" onclick="closeModal('srvCheckModal');toast('已切到该线路，正在跑完整七层体检…');nav('doctor')">切到该线路再体检</button>
       <button class="btn sm" onclick="closeModal('srvCheckModal');toast('服务端体检完成：SSH 可达 · gost 运行中 · 配置校验通过（3 项）')">只做服务端体检</button>
     </div>
   </div>
@@ -1296,7 +1254,7 @@ window.addEventListener('keydown',function(e){
         <tr><td>注册陪跑（1 对 1）</td><td style="color:#d97706">待服务</td><td>1 次</td><td>2026-12-14 前预约</td>
           <td><button class="btn sm" onclick="toast('（演示）这里会打开时间选择（远程 30 分钟，含录屏回放）')">去预约</button></td></tr>
         <tr><td>AI 出海课程包</td><td style="color:#10b981">已开通</td><td>不限次</td><td>永久 · 含后续更新</td>
-          <td><button class="btn sm ghost" onclick="closeModal('heldModal');go('svc')">去学习</button></td></tr>
+          <td><button class="btn sm ghost" onclick="closeModal('heldModal');nav('svc')">去学习</button></td></tr>
       </table>
       <div class="modal-note">服务类订单与订阅不同：<b>按次核销</b>，剩余次数、预约时间、有效期在这里一眼可见；退款与发票仍在官网用户中心处理。</div>
     </div>
@@ -1345,14 +1303,15 @@ window.addEventListener('keydown',function(e){
 <div class="tray-demo" id="trayDemo">
   <div class="t-head"><svg class="i sm"><use href="#i-terminal"/></svg>dukou · <b id="trayState" style="color:#ef4444">未连接</b></div>
   <div class="t-item" onclick="toggleConn()"><svg class="i sm"><use href="#i-bolt"/></svg>连接 / 断开</div>
-  <div class="t-item" onclick="go('servers');document.getElementById('trayDemo').classList.remove('show')"><svg class="i sm"><use href="#i-server"/></svg>切换服务器（新加坡 ▾）</div>
-  <div class="t-item" onclick="go('doctor');document.getElementById('trayDemo').classList.remove('show')"><svg class="i sm"><use href="#i-pulse"/></svg>一键体检</div>
-  <div class="t-item" onclick="go('set');document.getElementById('trayDemo').classList.remove('show')"><svg class="i sm"><use href="#i-archive"/></svg>备份配置</div>
+  <div class="t-item" onclick="nav('servers');document.getElementById('trayDemo').classList.remove('show')"><svg class="i sm"><use href="#i-server"/></svg>切换服务器（新加坡 ▾）</div>
+  <div class="t-item" onclick="nav('doctor');document.getElementById('trayDemo').classList.remove('show')"><svg class="i sm"><use href="#i-pulse"/></svg>一键体检</div>
+  <div class="t-item" onclick="nav('set');document.getElementById('trayDemo').classList.remove('show')"><svg class="i sm"><use href="#i-archive"/></svg>备份配置</div>
   <div class="t-item"><svg class="i sm"><use href="#i-pulse"/></svg>今日流量（订阅功能）</div>
-  <div class="t-item" onclick="go('home');document.getElementById('trayDemo').classList.remove('show')"><svg class="i sm"><use href="#i-home"/></svg>打开主面板</div>
+  <div class="t-item" onclick="nav('home');document.getElementById('trayDemo').classList.remove('show')"><svg class="i sm"><use href="#i-home"/></svg>打开主面板</div>
   <div class="t-item"><svg class="i sm"><use href="#i-x"/></svg>退出（退出时断开代理）</div>
 </div>
 
+<script src="js/20-api.js"></script>
 <script>
   var connected = false;
   /* 图标工厂：JS 动态改写内容时用，避免把 emoji 写进 innerHTML */
@@ -1360,11 +1319,11 @@ window.addEventListener('keydown',function(e){
     return '<svg class="' + (cls || 'i sm') + '"' + (color ? ' style="color:' + color + '"' : '')
       + '><use href="#i-' + name + '"/></svg>';
   }
-  function go(p){ document.querySelectorAll('.nav-item').forEach(function(n){n.classList.toggle('active', n.dataset.page===p);});
+  function nav(p){ document.querySelectorAll('.nav-item').forEach(function(n){n.classList.toggle('active', n.dataset.page===p);});
     document.querySelectorAll('.page').forEach(function(pg){pg.classList.remove('active');});
     document.getElementById('page-'+p).classList.add('active');
     if(p==='home'){ fitHero(); } }
-  document.querySelectorAll('.nav-item').forEach(function(n){ n.onclick=function(){go(n.dataset.page);}; });
+  document.querySelectorAll('.nav-item').forEach(function(n){ n.onclick=function(){nav(n.dataset.page);}; });
   /* 首页自适应：连接按钮随可用高度缩放 */
   function fitHero(){
     var wrap = document.querySelector('#page-home .connect-wrap');
@@ -1453,7 +1412,7 @@ window.addEventListener('keydown',function(e){
   }
   function obJump(page, tip){
     closeModal('obModal');
-    go(page);
+    nav(page);
     if(tip) toast(tip);
   }
   function obSkip(){
@@ -1487,24 +1446,24 @@ window.addEventListener('keydown',function(e){
       a: 'SSH 密码是<b>你买服务器时自己设置的</b>（不是厂商发给你的）。忘了也不要紧，去控制台重置：<br>'
        + '· <b>腾讯云</b>：控制台 → 轻量应用服务器 → 点你的实例 → 「重置密码」，重置后重启生效<br>'
        + '· <b>阿里云 / Vultr</b>：控制台实例详情页都有「重置密码 / Root Password」入口<br>'
-       + '拿到 IP + 密码后，填进「网络配置」页的对应框就行。<span class="act" onclick="go(\'network\')">打开网络配置 ›</span>' },
+       + '拿到 IP + 密码后，填进「网络配置」页的对应框就行。<span class="act" onclick="nav(\'network\')">打开网络配置 ›</span>' },
     ak: { q: 'AccessKey 是什么？在哪里获取？',
       a: 'AccessKey 是云厂商给你的「编程钥匙」——dukou 拿到它就能<b>自动创建实例、自动放行端口</b>，你完全不用进控制台。<br>'
        + '获取：腾讯云控制台 → 右上角头像 → <b>API 密钥管理</b> → 新建密钥，得到 SecretId + SecretKey 两个值。<br>'
-       + '安全说明：密钥<b>只存在你自己电脑里</b>，加密保存，dukou 不上传。<span class="act" onclick="go(\'network\')">用 AccessKey 配置 ›</span>' },
+       + '安全说明：密钥<b>只存在你自己电脑里</b>，加密保存，dukou 不上传。<span class="act" onclick="nav(\'network\')">用 AccessKey 配置 ›</span>' },
     buy: { q: '第一次买服务器怎么选？',
       a: '照这个抄作业就行：<br>'
        + '· <b>厂商</b>：腾讯云轻量（¥99/年，国内公司出海节点，支持 AccessKey 全自动）<br>'
        + '· <b>地域</b>：新加坡（离国内近，延迟低）<br>'
        + '· <b>配置</b>：2核2G 起步，跑 AI 工具足够<br>'
        + '· <b>系统</b>：Ubuntu 24.04<br>'
-       + '买的时候设置的密码就是 SSH 密码，记好。<span class="act" onclick="go(\'shop\')">去看服务器 ›</span>' },
+       + '买的时候设置的密码就是 SSH 密码，记好。<span class="act" onclick="nav(\'shop\')">去看服务器 ›</span>' },
     guide: { q: '带我去完成网络配置',
       a: '好，跟我走三步：<br>'
        + '<b>第 1 步</b>：打开「网络配置」页，把服务器的 IP、root、密码填进去（密码找不到就先问我「SSH 密码在哪里找」）<br>'
        + '<b>第 2 步</b>：点「--dry-run 先看计划」，确认只会装代理服务、不改你其他东西<br>'
        + '<b>第 3 步</b>：点「开始部署」，等四步流水线跑完<br>'
-       + '完成后回首页点大圆环「连接」，出口 IP 变了就成功了。<span class="act" onclick="go(\'network\')">开始第 1 步 ›</span>' }
+       + '完成后回首页点大圆环「连接」，出口 IP 变了就成功了。<span class="act" onclick="nav(\'network\')">开始第 1 步 ›</span>' }
   };
   function askAI(key){
     var box = document.getElementById('aiMsgs');
@@ -1562,7 +1521,7 @@ window.addEventListener('keydown',function(e){
     var bar=document.getElementById('trialBar');
     if(bar) bar.innerHTML='<svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>'
       + '<span>免费试用中，剩余 <b>3 天</b> · 到期后代理照常可用，不限速不中断</span>'
-      + '<button class="btn sm ghost" onclick="go(\'me\')">查看套餐</button>';
+      + '<button class="btn sm ghost" onclick="nav(\'me\')">查看套餐</button>';
     var side=document.getElementById('sideTrial'); if(side) side.textContent='试用中 · 剩 3 天';
     toast('领取成功：3 天全功能试用已开启，到期后代理仍可正常使用');
     if(typeof fitHero==='function') setTimeout(fitHero,60);
@@ -1614,30 +1573,166 @@ window.addEventListener('keydown',function(e){
     toast('开始重新下载完整安装包（约 28 MB）…');
     setTimeout(function(){ toast('下载完成并已校验；上一版安装包保留，可随时回退'); }, 2000);
   }
-  /* 网络配置 */
+  /* ── 网络配置：真实部署（§5.1 App.Deploy + deploy:event 事件流） ── */
+  var DEP_STEPS = [
+    { id: 'connect', name: '连接服务器', desc: '' },
+    { id: 'server',  name: '配置服务端', desc: '' },
+    { id: 'client',  name: '配置本机',   desc: '' },
+    { id: 'codex',   name: '安装 Codex', desc: '' }
+  ];
+  var deploying = false;
+  function depRow(st, n, name, desc) {
+    var cls = st === 'done' ? 'done' : (st === 'fail' ? 'fail' : (st === 'run' ? 'run' : ''));
+    var icon = st === 'done' ? '✓' : (st === 'fail' ? '✕' : String(n));
+    return '<div class="step ' + cls + '" id="dep-' + name + '"><div class="n">' + icon + '</div><div><b>' + DEP_STEPS[n - 1].name + '</b>'
+      + '<br><span style="font-size:12px;color:#6b7280">' + (desc || '等待执行…') + '</span></div></div>';
+  }
+  function depSet(stepId, st, msg) {
+    var row = document.getElementById('dep-' + stepId);
+    if (!row) return;
+    var idx = DEP_STEPS.findIndex(function(s){ return s.id === stepId; });
+    row.outerHTML = depRow(st, idx + 1, stepId, msg);
+  }
+  window.onDeployEvent = function (ev) {
+    if (ev.kind === 'log') {
+      var log = document.getElementById('depLog');
+      log.style.display = 'block';
+      log.textContent += ev.msg + '\n';
+      log.scrollTop = log.scrollHeight;
+      return;
+    }
+    var st = ev.kind === 'step_start' ? 'run' : (ev.kind === 'step_done' ? 'done' : 'fail');
+    depSet(ev.step, st, ev.msg + (ev.detail ? ' — ' + ev.detail : ''));
+  };
   function startDeploy(){
-    toast('开始部署…（演示：正式版会在这里实时输出四步流水线日志）');
+    if (deploying) return;
+    if (!DukouAPI.hasBackend()) { toast('后端未就绪：请在桌面 App 内使用部署功能'); return; }
+    var host = document.getElementById('depHost').value.trim();
+    var port = parseInt(document.getElementById('depPort').value, 10) || 22;
+    var user = document.getElementById('depUser').value.trim() || 'root';
+    var pass = document.getElementById('depPass').value;
+    if (!host) { toast('请先填写服务器 IP / 域名'); return; }
+    if (!pass) { toast('请填写服务器密码（或先在服务器上配好密钥）'); return; }
+    deploying = true;
+    var btn = document.getElementById('depBtn');
+    btn.disabled = true; btn.textContent = '部署中…';
+    document.getElementById('depCard').style.display = '';
+    document.getElementById('depLog').style.display = 'none';
+    document.getElementById('depLog').textContent = '';
+    document.getElementById('depSteps').innerHTML =
+      depRow('', 1, 'connect') + depRow('', 2, 'server') + depRow('', 3, 'client') + depRow('', 4, 'codex');
+
+    DukouAPI.deploy({ serverHost: host, sshPort: port, sshUser: user, sshPassword: pass,
+                      sshKey: '', localSudo: '', installCodex: false })
+      .then(function (res) {
+        toast('部署完成！出口 IP ' + (res.egressIp || '（验证中）') + '，已存入服务器清单');
+        // 部署成功 → 存入服务器清单（§5.1 AddServer，密码只进加密库）
+        DukouAPI.addServer({ name: host, flag: '', host: host, sshUser: user,
+                             authType: 'password', sshPort: port, proxyPort: 7890,
+                             sshPassword: pass, sshKey: '' })
+          .then(function () { renderServers(); toast('服务器已保存：' + host + '（清单见「代理服务器」页）'); })
+          .catch(function (e) { toast('部署成功，但存入清单失败：' + e.message); });
+      })
+      .catch(function (e) {
+        toast('部署未完成：' + (e.message || e));
+      })
+      .then(function () {
+        deploying = false;
+        btn.disabled = false; btn.textContent = '开始部署';
+      });
   }
-  /* 服务器列表 */
-  function switchTo(name){
-    toast('已切换到 '+name+'：旧线路断开，新线路 2 秒内就绪（国内分流不受影响）');
+  /* dry-run：M1 阶段 deploy 尚无只读模式，先如实说明（§八 M1 不做连接） */
+  function dryRunHint(){
+    toast('只读探测模式将在连接模块（M2）一并上线；当前可直接部署，失败不会改动服务器');
   }
-  function retryDeploy(){
-    toast('正在重试部署「洛杉矶 · 搬瓦工」…');
-    setTimeout(function(){ toast('重试失败：SSH 仍超时。建议先检查安全组 22 端口与 IP 白名单'); }, 1900);
+  /* ── 服务器清单：真数据渲染（§5.1 ListServers / UpdateServer / RemoveServer） ── */
+  var _servers = [];
+  var SRV_PILL = {
+    standby: '<span class="pill off">备用</span>',
+    active:  '<span class="pill on">使用中</span>',
+    error:   '<span class="pill err">异常</span>',
+    locked:  '<span class="pill off">已锁定</span>'
+  };
+  function renderServers(){
+    var box = document.getElementById('srvList');
+    if (!DukouAPI.hasBackend()) {
+      var g = window.go, diag;
+      try {
+        diag = 'go=' + (typeof g) + ' go.src=' + (g ? String(g).replace(/\s+/g, ' ').slice(0, 80) : '-')
+          + ' keys=' + (g ? Object.keys(g).join(',') : '-')
+          + ' wails=' + (typeof window.wails) + ' wb=' + (typeof window.wailsbindings);
+      } catch (e) { diag = 'diag异常:' + e.message; }
+      box.innerHTML = '<div class="mini-note" style="padding:10px 0">后端未就绪（请在桌面 App 内运行）。<br>诊断：' + diag + '</div>';
+      return;
+    }
+    DukouAPI.listServers().then(function (list) {
+      _servers = list || [];
+      document.getElementById('srvCount').textContent = _servers.length;
+      if (!_servers.length) {
+        box.innerHTML = '<div class="mini-note" style="padding:10px 0">还没有服务器——去「网络配置」页部署第一台，完成后会自动存到这里。</div>';
+        return;
+      }
+      box.innerHTML = _servers.map(function (s, i) {
+        var pill = SRV_PILL[s.status] || SRV_PILL.standby;
+        var flag = s.flag ? '<div class="flag">' + s.flag + '</div>'
+                          : '<div class="flag" style="background:#f3f4f6;color:#6b7280">·</div>';
+        return '<div class="srv lockable">' + flag
+          + '<div class="meta"><b>' + s.name + '</b> ' + pill
+          + '<div class="mline">' + s.host + ' · SSH ' + s.sshPort + ' · ' + s.sshUser
+          + (s.lastCheck ? ' · 最近体检 ' + s.lastCheck : '') + '</div></div>'
+          + '<div class="ops">'
+          + '<button class="btn sm" onclick="switchTo(' + i + ')">切到此线路</button>'
+          + '<button class="btn sm ghost" onclick="serverCheck(\'' + s.name + '\')">服务器体检</button>'
+          + '<button class="btn sm ghost" onclick="openEdit(' + i + ')">编辑</button>'
+          + '<button class="btn sm ghost" style="color:#b91c1c" onclick="removeServer(' + i + ')">删除</button>'
+          + '</div></div>';
+      }).join('');
+    }).catch(function (e) {
+      box.innerHTML = '<div class="mini-note" style="padding:10px 0;color:#b91c1c">清单读取失败：' + (e.message || e) + '</div>';
+    });
   }
-  function openEdit(name, ip, port, user, tag){
-    document.getElementById('edName').value=name;
-    document.getElementById('edIp').value=ip;
-    document.getElementById('edPort').value=port;
-    document.getElementById('edUser').value=user;
-    document.getElementById('edTag').value='使用中';
+  /* 连接/切换线路属 M2（internal/proxy）；M1 如实提示 */
+  function switchTo(i){
+    var s = _servers[i];
+    toast('「' + s.name + '」的连接与切换将在 v0.2 连接模块（M2）上线；当前版本可先部署、编辑与体检');
+  }
+  function retryDeploy(){ /* 旧演示入口，清单改真数据后不再使用 */ }
+  function openEdit(i){
+    var s = _servers[i]; if (!s) return;
+    document.getElementById('edName').value = s.name;
+    document.getElementById('edIp').value = s.host;
+    document.getElementById('edPort').value = s.sshPort;
+    document.getElementById('edUser').value = s.sshUser;
+    document.getElementById('edPass').value = '';
     openModal('editModal');
   }
   function saveEdit(){
-    var n=document.getElementById('edName').value || '未命名服务器';
-    closeModal('editModal');
-    toast('已保存并应用：'+n+'（本机配置已更新，未重启远端服务）');
+    var s = _servers[_editingIdx]; if (!s) return;
+    var name = document.getElementById('edName').value.trim() || s.name;
+    var host = document.getElementById('edIp').value.trim();
+    var user = document.getElementById('edUser').value.trim() || s.sshUser;
+    var port = parseInt(document.getElementById('edPort').value, 10) || s.sshPort;
+    var pass = document.getElementById('edPass').value; // 留空 = 保持原密码（后端语义）
+    if (!host) { toast('服务器地址不能为空'); return; }
+    DukouAPI.updateServer(s.id, { name: name, flag: s.flag, host: host, sshUser: user,
+                                  authType: s.authType, sshPort: port, proxyPort: s.proxyPort,
+                                  sshPassword: pass, sshKey: '' })
+      .then(function () {
+        closeModal('editModal');
+        toast('已保存：' + name + '（改动在下次连接时生效）');
+        renderServers();
+      })
+      .catch(function (e) { toast('保存失败：' + (e.message || e)); });
+  }
+  var _editingIdx = -1;
+  var _origOpenEdit = openEdit;
+  openEdit = function (i) { _editingIdx = i; _origOpenEdit(i); };
+  function removeServer(i){
+    var s = _servers[i]; if (!s) return;
+    if (!confirm('确定删除「' + s.name + '」？\n\n本机保存的该服务器配置与加密凭据会一并清除；服务器本身不受影响。')) return;
+    DukouAPI.removeServer(s.id)
+      .then(function () { toast('已删除：' + s.name); renderServers(); })
+      .catch(function (e) { toast('删除失败：' + (e.message || e)); });
   }
   /* 批量体检 */
   var batchData=[
@@ -1749,7 +1844,7 @@ window.addEventListener('keydown',function(e){
   function updateNow(){
     closeUpdate();
     document.getElementById('updHome').style.display = 'none';
-    go('set');
+    nav('set');
     document.getElementById('verPill').textContent = '有新版本';
     document.getElementById('verPill').className = 'pill err';
     document.getElementById('updState').innerHTML = '<span style="display:flex;color:#0f766e">'+I('sparkle','i lg')+'</span>'
@@ -1793,6 +1888,35 @@ window.addEventListener('keydown',function(e){
   fitHero();
   setTimeout(fitHero, 120);
   renderDoctor();
+
+  /* ── 启动拉取：连接状态 / 首次启动引导 / 服务器清单（§5.1 前端启动时先拉一次） ── */
+  function applyProxyStatus(st) {
+    if (!st || !st.connected) return; // M1 无连接能力，恒为断开态；M2 接真状态渲染
+    connected = true;
+    document.getElementById('powerBtn').classList.add('on');
+    document.getElementById('connState').textContent = '已连接 · ' + (st.serverName || '代理线路');
+    document.getElementById('st1').innerHTML = '<b>' + (st.egressIp || '—') + '</b><span>出口 IP</span>';
+    document.getElementById('st2').innerHTML = '<b>' + (st.latencyMs ? st.latencyMs + 'ms' : '—') + '</b><span>延迟</span>';
+    document.getElementById('trayState').textContent = '已连接';
+    document.getElementById('trayState').style.color = '#10b981';
+    document.getElementById('aiWarn').style.display = 'none';
+  }
+  window.onProxyStatus = applyProxyStatus;
+  /* window.go 由 Wails runtime 异步注入，页面脚本执行时未必就绪——轮询等待后拉取。
+     不等待的话首次启动会永远拉不到状态、清单显示"加载中"。 */
+  function whenBackendReady(cb, attempts) {
+    if (DukouAPI.hasBackend()) { cb(); return; }
+    if (attempts <= 0) { renderServers(); return; } // 等不到就如实渲染"后端未就绪"
+    setTimeout(function () { whenBackendReady(cb, attempts - 1); }, 300);
+  }
+  whenBackendReady(function () {
+    DukouAPI.proxyStatus().then(applyProxyStatus).catch(function () {});
+    DukouAPI.appInfo().then(function (info) {
+      if (info && info.firstRun) openModal('obModal');
+    }).catch(function () {});
+    renderServers();
+  }, 40);
 </script>
+<script src="js/50-events.js"></script>
 </body>
 </html>

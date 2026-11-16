@@ -74,6 +74,11 @@ func (a *App) ProxyStatus() (app.Status, error) {
 	return a.svc.ProxyStatus()
 }
 
+// AppInfo 版本/平台/首次启动标记（新手引导只弹一次）。
+func (a *App) AppInfo() (app.AppInfo, error) {
+	return a.svc.AppInfo()
+}
+
 // ConfigDir 返回配置目录（设置页展示用）。
 func (a *App) ConfigDir() string {
 	return a.svc.ConfigDir()

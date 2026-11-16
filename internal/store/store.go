@@ -39,9 +39,15 @@ type Server struct {
 // ServerInput 是新增/编辑服务器时界面提交的输入。
 // SSHPassword / SSHKey 只写不读：编辑时留空表示"保持原值不变"。
 type ServerInput struct {
-	Name, Flag, Host, SSHUser, AuthType string
-	SSHPort, ProxyPort                  int
-	SSHPassword, SSHKey                 string // 只写不读
+	Name        string `json:"name"`
+	Flag        string `json:"flag"`
+	Host        string `json:"host"`
+	SSHUser     string `json:"sshUser"`
+	AuthType    string `json:"authType"`
+	SSHPort     int    `json:"sshPort"`
+	ProxyPort   int    `json:"proxyPort"`
+	SSHPassword string `json:"sshPassword"` // 只写不读
+	SSHKey      string `json:"sshKey"`      // 只写不读
 }
 
 type envelope struct {
