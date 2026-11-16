@@ -46,6 +46,7 @@
 
     /* ── 部署与连接（真接口） ── */
     deploy: function (req) { return call('Deploy', [req]); },
+    deployServer: function (id, input) { return call('DeployServer', [id, input]); },
     proxyStatus: function () { return call('ProxyStatus'); },
     connect: function (serverId) { return call('Connect', [serverId]); },
     disconnect: function () { return call('Disconnect'); },

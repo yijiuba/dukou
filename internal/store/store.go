@@ -56,6 +56,9 @@ type ServerInput struct {
 	// ProxyPassword 是部署时生成的代理通道密码，连接时用。
 	// 与 SSH 密码同为只写字段，留空表示保持原值。
 	ProxyPassword string `json:"proxyPassword"`
+	// Status 由「先保存后部署」流程使用：保存了但还没部署时传 "pending"，
+	// 留空按 standby 处理（兼容网络配置页的即填即部署老入口）。
+	Status string `json:"status"`
 }
 
 type envelope struct {
@@ -344,6 +347,7 @@ func normalize(in ServerInput) (Server, error) {
 		ProxyPort:  proxyPort,
 		ServerPort: serverPort,
 		ProxyUser:  "dukou", // 本机代理认证用户名固定；ProxyInput 契约里由部署结果回填
+		Status:     in.Status,
 	}, nil
 }
 

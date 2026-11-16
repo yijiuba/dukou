@@ -28,6 +28,9 @@ func (s *Service) Connect(serverID string) (Status, error) {
 	if !ok {
 		return Status{}, fmt.Errorf("找不到服务器 %s，可能已被删除，请刷新列表", serverID)
 	}
+	if srv.Status == "pending" {
+		return Status{}, errors.New("该服务器还没有部署服务端，请先在「代理服务器」页点「部署」")
+	}
 
 	user, pass, err := s.store.ProxyCredentials(serverID)
 	if err != nil {
@@ -102,8 +105,12 @@ func (s *Service) CleanupResidue() (Status, error) {
 func (s *Service) SwitchServer(serverID string) error {
 	// 目标不存在时不能先断开：那样用户会从「连着」变成「断了而且没连上」，
 	// 而这次切换本来就不该动他当前的线路。先校验，再动手。
-	if _, ok := s.store.Get(serverID); !ok {
+	srv, ok := s.store.Get(serverID)
+	if !ok {
 		return fmt.Errorf("找不到服务器 %s，可能已被删除，请刷新列表", serverID)
+	}
+	if srv.Status == "pending" {
+		return fmt.Errorf("「%s」还没有部署服务端，请先部署再切换", srv.Name)
 	}
 	if err := s.Disconnect(); err != nil {
 		return fmt.Errorf("切换前断开旧线路失败: %w", err)

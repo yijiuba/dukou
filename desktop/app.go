@@ -314,3 +314,9 @@ func (a *App) AIToolUninstall(id string) (aitool.Result, error) {
 func (a *App) AIToolLaunch(id string) (aitool.Result, error) {
 	return a.svc.AIToolLaunch(id)
 }
+
+// DeployServer 从服务器清单发起部署（「先保存后部署」流程）。
+// 表单上改过的连接信息会存回清单；SSHPassword 留空表示沿用已保存的。
+func (a *App) DeployServer(id string, in store.ServerInput) (deploy.Result, error) {
+	return a.svc.DeployServer(id, in)
+}
