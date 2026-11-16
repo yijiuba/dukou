@@ -5,6 +5,8 @@ package main
 import (
 	"context"
 	"sync"
+	"syscall"
+	"unsafe"
 
 	"fyne.io/systray"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -94,12 +96,40 @@ func (a *App) onBeforeClose(ctx context.Context) bool {
 }
 
 // showWindow 从托盘唤回主界面。托盘菜单"打开主界面"调用。
+//
+// 先走 Wails runtime（带主线程 Invoke、激活、焦点），再用 Win32 兜底：
+// runtime 调用在某些窗口状态下可能静默失败（日志看不到、窗口没起来），
+// 兜底直接对窗口句柄 SW_RESTORE + SetForegroundWindow，保证"点托盘必出窗"。
 func (a *App) showWindow() {
 	if a.ctx == nil {
 		return
 	}
 	runtime.WindowUnminimise(a.ctx)
 	runtime.WindowShow(a.ctx)
+	ensureMainWindowVisible()
+}
+
+var (
+	user32                        = syscall.NewLazyDLL("user32.dll")
+	procFindWindowW               = user32.NewProc("FindWindowW")
+	procIsWindowVisible           = user32.NewProc("IsWindowVisible")
+	procShowWindow                = user32.NewProc("ShowWindow")
+	procSetForegroundWindowUser32 = user32.NewProc("SetForegroundWindow")
+)
+
+// ensureMainWindowVisible 兜底：若主窗口仍不可见，直接 Win32 恢复显示并置前。
+func ensureMainWindowVisible() {
+	const swRestore = 9
+	hwnd, _, _ := procFindWindowW.Call(0, uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr("渡口 · 一键部署"))))
+	if hwnd == 0 {
+		return
+	}
+	if vis, _, _ := procIsWindowVisible.Call(hwnd); vis != 0 {
+		return // runtime 已成功，不动
+	}
+	println("[tray] runtime 唤窗未生效，走 Win32 兜底")
+	procShowWindow.Call(hwnd, swRestore)
+	procSetForegroundWindowUser32.Call(hwnd)
 }
 
 // hideWindow 隐藏主窗口到托盘。

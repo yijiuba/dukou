@@ -29,15 +29,20 @@ func startTray(a *App) {
 		systray.AddSeparator()
 		mQuit := systray.AddMenuItem("退出渡口", "停止代理并完全退出")
 
+		// 库的事件投递是 select+default 的非阻塞发送（无人接收时静默丢弃），
+		// 所以每个菜单项配一个专职 goroutine，始终停在 <-ClickedCh 上，
+		// 把"点击被丢弃"的窗口压到最小。不能合并成一个 select 循环：
+		// 处理 A 期间 B 的点击会丢。
 		go func() {
-			for {
-				select {
-				case <-mShow.ClickedCh:
-					a.showWindow()
-				case <-mQuit.ClickedCh:
-					a.quitApp()
-					return
-				}
+			for range mShow.ClickedCh {
+				println("[tray] 菜单点击：打开主界面")
+				a.showWindow()
+			}
+		}()
+		go func() {
+			for range mQuit.ClickedCh {
+				println("[tray] 菜单点击：退出渡口")
+				a.quitApp()
 			}
 		}()
 
