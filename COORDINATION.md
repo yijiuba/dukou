@@ -9,7 +9,7 @@
 
 | 登记时间 | 会话 / 任务 | 占用文件 | 意图 | 状态 |
 |---|---|---|---|---|
-| 11-17 11:52 | 客户端/审计线 C1-C3 | `internal/app/connect.go`（SwitchServer/Connect 加锁检查）、`internal/app/{lockcheck.go,lockcheck_test.go}`（新增）、`internal/store/lockstate.go`（新增）、`internal/app/app.go`（struct 字段区末尾追加）、`desktop/app.go`（末尾追加转发）、`index.html`（服务器页分区+st3+806-813 清单+expiredModal 文案）、`js/20-api.js`（DukouAPI 末尾追加 subscriptionLock） | 对接单 v1.1 D2 定稿落地：expiredDemo→真实 locked、SwitchServer 加 SUB:LOCKED、文案修正 | 进行中 |
+| 11-17 11:52 | 客户端/审计线 C1-C3 | `internal/app/connect.go`（SwitchServer/Connect 加锁检查）、`internal/app/{lockcheck.go,lockcheck_test.go}`（新增）、`internal/store/lockstate.go`（新增）、`internal/app/app.go`（struct 字段区末尾追加）、`desktop/app.go`（末尾追加转发）、`index.html`（服务器页分区+st3+806-813 清单+expiredModal 文案）、`js/20-api.js`（DukouAPI 末尾追加 subscriptionLock） | 对接单 v1.1 D2 定稿落地：expiredDemo→真实 locked、SwitchServer 加 SUB:LOCKED、文案修正 | **已完成** `be5de35`/`17cc272`，dev 真机截图验收通过；待账号线在 60-account.js 拉到新快照后调 `window.refreshLockState()`（续订即解锁），真实账号联调项见对接单 §四 |
 | 11-16 17:58 | 账号线 T9 | `internal/account/**`、`js/60-account.js`、`js/50-events.js`（末尾追加加载器） | 登录弹窗 + 订阅状态，运行时注入，**未碰 index.html** | 已提交 `44b9956`，UI 待真机验收 |
 | 11-16 19:06 | M3 客户端线 | `internal/app/{app,connect,status}.go`（仅内部实现：代理驱动可注入）、`index.html` AI 工具页 | 多服务器切换单测 + AI 工具接真 | 已完成并提交（`2c9ae59`/`8eb89af`/`45907bb`/`3854877`），claim 释放 |
 | 11-17 11:45 | 账号线 · 对接单 v1.1 | `js/60-account.js` | 订阅权限分割 D1-D4 定稿完成（见《登录与订阅权限分割-接口会话对接单-v1.1》）；**C1 中 60-account.js 部分的实施权在本会话**，index.html 的 C1/C3 片段仍归客户端线。C2（connect.go）未开工，客户端线动工前自行登记 | 定稿已完成，C1 待实施 |
