@@ -32,3 +32,13 @@
   s.src = 'js/60-account.js';
   document.body.appendChild(s);
 })();
+
+/* 增值服务页接线（契约 v1.1）：同样运行时注入，不改 index.html。 */
+(function () {
+  'use strict';
+  if (document.getElementById('svcScript')) return;
+  var s = document.createElement('script');
+  s.id = 'svcScript';
+  s.src = 'js/70-services.js';
+  document.body.appendChild(s);
+})();

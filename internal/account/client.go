@@ -130,6 +130,44 @@ type Referral struct {
 	NextLevelHint string  `json:"nextLevelHint"`
 }
 
+// Product 对应契约 v1.1 E10（增值服务商品目录）。
+type Product struct {
+	ID         string          `json:"id"`
+	Kind       string          `json:"kind"`     // course | service
+	Name       string          `json:"name"`
+	Summary    string          `json:"summary"`
+	PriceCents int             `json:"priceCents"`
+	Delivery   string          `json:"delivery"` // self | human
+	Sort       int             `json:"sort"`
+	Meta       json.RawMessage `json:"meta"`
+}
+
+// Entitlement 对应契约 v1.1 E11（用户已购权益）。
+type Entitlement struct {
+	ID        string `json:"id"`
+	Kind      string `json:"kind"`
+	RefID     string `json:"refId"`
+	Name      string `json:"name"`
+	Remaining *int   `json:"remaining"` // nil = 不限次（课程）
+	ExpiresAt string `json:"expiresAt"`
+	CreatedAt string `json:"createdAt"`
+}
+
+// ServiceOrder 对应契约 v1.1 E12（增值服务订单）。
+type ServiceOrder struct {
+	ID          string `json:"id"`
+	ProductID   string `json:"productId"`
+	ProductName string `json:"productName"`
+	PriceCents  int    `json:"priceCents"`
+	Status      string `json:"status"` // pending | paid | done | refunded
+	Channel     string `json:"channel"`
+	Note        string `json:"note"`
+	ScheduledAt string `json:"scheduledAt"`
+	CreatedAt   string `json:"createdAt"`
+	PaidAt      string `json:"paidAt"`
+	DeliveredAt string `json:"deliveredAt"`
+}
+
 // Session 是本地保存的登录态。token 只进加密库，绝不明文落盘。
 type Session struct {
 	AccessToken  string `json:"accessToken"`
@@ -348,6 +386,45 @@ func (c *Client) Referral() (Referral, error) {
 	var r Referral
 	err := c.rpc("referral_snapshot", map[string]any{}, &r)
 	return r, err
+}
+
+// Products 增值服务商品目录（E10，公开端点，只含上架商品）。
+func (c *Client) Products() ([]Product, error) {
+	q := url.Values{}
+	q.Set("select", "id,kind,name,summary,priceCents:price_cents,delivery,sort,meta")
+	q.Set("status", "eq.on")
+	q.Set("order", "sort")
+	var out []Product
+	err := c.do(http.MethodGet, "/.cloud/database/rest/products?"+q.Encode(), nil, &out, false)
+	return out, err
+}
+
+// Entitlements 我的权益（E11）。
+func (c *Client) Entitlements() ([]Entitlement, error) {
+	var out []Entitlement
+	err := c.rpc("my_entitlements", map[string]any{}, &out)
+	return out, err
+}
+
+// ServiceOrders 我的服务订单（E12b）。
+func (c *Client) ServiceOrders() ([]ServiceOrder, error) {
+	var out []ServiceOrder
+	err := c.rpc("my_service_orders", map[string]any{}, &out)
+	return out, err
+}
+
+// CreateServiceOrder 提交增值服务订单（E12）。scheduledAt 为空表示不指定预约时间。
+func (c *Client) CreateServiceOrder(productID, note, scheduledAt string) (ServiceOrder, error) {
+	args := map[string]any{"p_product_id": productID}
+	if note != "" {
+		args["p_note"] = note
+	}
+	if scheduledAt != "" {
+		args["p_scheduled_at"] = scheduledAt
+	}
+	var out ServiceOrder
+	err := c.rpc("create_service_order", args, &out)
+	return out, err
 }
 
 // Heartbeat 上报有效在线分钟数（E9）。失败由调用方决定是否重试。

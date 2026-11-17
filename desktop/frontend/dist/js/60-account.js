@@ -196,6 +196,7 @@
         state.pending = null;
         closeAuth();
         toast('登录成功');
+        try { window.dispatchEvent(new CustomEvent('acc:login')); } catch (e) {}
         refresh();
       }).catch(function (e) {
         busy(false, '登录');
@@ -456,6 +457,7 @@
     API.logout().then(function () {
       state.loggedIn = false; state.email = ''; state.account = null; state.referral = null;
       toast('已退出登录');
+      try { window.dispatchEvent(new CustomEvent('acc:logout')); } catch (e) {}
       refresh();
     }).catch(function (e) { toast('退出失败：' + errText(e)); });
   }

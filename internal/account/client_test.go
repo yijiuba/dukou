@@ -207,3 +207,59 @@ func TestOrdersRequiresLogin(t *testing.T) {
 		t.Fatalf("未登录应返回 AUTH:SESSION，实际 %v", err)
 	}
 }
+
+// 增值服务（契约 v1.1）：商品读表、权益与下单走 RPC，字段别名必须对上。
+func TestProductsMapsColumns(t *testing.T) {
+	var query string
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/.cloud/database/rest/products" {
+			t.Errorf("路径错误: %s", r.URL.Path)
+		}
+		query = r.URL.RawQuery
+		_ = json.NewEncoder(w).Encode([]map[string]any{{
+			"id": "svc_course_ai", "kind": "course", "name": "AI 出海课程包",
+			"summary": "s", "priceCents": 1990, "delivery": "self", "sort": 10,
+			"meta": map[string]any{"chapters": []string{"a"}},
+		}})
+	})
+	ps, err := c.Products()
+	if err != nil {
+		t.Fatalf("Products: %v", err)
+	}
+	if len(ps) != 1 || ps[0].PriceCents != 1990 || ps[0].Kind != "course" {
+		t.Fatalf("商品解析错误: %+v", ps)
+	}
+	if !strings.Contains(query, "priceCents%3Aprice_cents") || !strings.Contains(query, "status=eq.on") {
+		t.Fatalf("查询串缺少别名或上架过滤: %s", query)
+	}
+}
+
+func TestCreateServiceOrderSendsRPCArgs(t *testing.T) {
+	var path string
+	var body map[string]any
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.Path
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "so_1", "productId": "svc_coach_reg", "productName": "注册陪跑服务",
+			"priceCents": 3900, "status": "pending", "channel": "manual",
+		})
+	})
+	c.SetSession(Session{AccessToken: "tok", Email: "a@b.com"})
+	o, err := c.CreateServiceOrder("svc_coach_reg", "周末晚上", "")
+	if err != nil {
+		t.Fatalf("CreateServiceOrder: %v", err)
+	}
+	if path != "/.cloud/database/rest/rpc/create_service_order" {
+		t.Fatalf("RPC 路径错误: %s", path)
+	}
+	if body["p_product_id"] != "svc_coach_reg" || body["p_note"] != "周末晚上" {
+		t.Fatalf("RPC 参数错误: %+v", body)
+	}
+	if _, ok := body["p_scheduled_at"]; ok {
+		t.Fatalf("空预约时间不应发送 p_scheduled_at: %+v", body)
+	}
+	if o.Status != "pending" || o.PriceCents != 3900 {
+		t.Fatalf("返回解析错误: %+v", o)
+	}
+}

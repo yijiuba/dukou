@@ -159,6 +159,54 @@ func (s *Service) Referral() (account.Referral, error) {
 	return c.Referral()
 }
 
+// ── 增值服务（契约 v1.1 E10-E12）──────────────────────────────────
+
+// Products 商品目录（E10，公开）。未登录也可拉取，用于展示商品卡。
+func (s *Service) Products() ([]account.Product, error) {
+	c, err := s.accountClient()
+	if err != nil {
+		return nil, err
+	}
+	return c.Products()
+}
+
+// Entitlements 我的权益（E11）。未登录时返回空列表而非报错——
+// 「我持有的服务」条在未登录态只是不显示。
+func (s *Service) Entitlements() ([]account.Entitlement, error) {
+	c, err := s.accountClient()
+	if err != nil {
+		return nil, err
+	}
+	if !c.LoggedIn() {
+		return []account.Entitlement{}, nil
+	}
+	return c.Entitlements()
+}
+
+// ServiceOrders 我的服务订单（E12b）。
+func (s *Service) ServiceOrders() ([]account.ServiceOrder, error) {
+	c, err := s.accountClient()
+	if err != nil {
+		return nil, err
+	}
+	if !c.LoggedIn() {
+		return []account.ServiceOrder{}, nil
+	}
+	return c.ServiceOrders()
+}
+
+// CreateServiceOrder 提交增值服务订单（E12）。一期人工收款，返回 pending 订单。
+func (s *Service) CreateServiceOrder(productID, note, scheduledAt string) (account.ServiceOrder, error) {
+	c, err := s.accountClient()
+	if err != nil {
+		return account.ServiceOrder{}, err
+	}
+	if !c.LoggedIn() {
+		return account.ServiceOrder{}, &account.APIError{Code: "AUTH:SESSION", Message: "请先登录再预约服务"}
+	}
+	return c.CreateServiceOrder(productID, note, scheduledAt)
+}
+
 // ── 心跳（契约 E9）────────────────────────────────────────────────
 //
 // 口径：App 打开且代理已连接 → 每 5 分钟上报 5 分钟；未连接不发（省电省流量）。

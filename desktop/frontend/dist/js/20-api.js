@@ -87,6 +87,14 @@
     orders: function () { return call('Orders'); },
     referral: function () { return call('Referral'); },
 
+    /* ── 增值服务（v1.1，契约 E10-E12；真接口已就绪） ── */
+    products: function () { return call('Products'); },
+    entitlements: function () { return call('Entitlements'); },
+    serviceOrders: function () { return call('ServiceOrders'); },
+    createServiceOrder: function (productId, note, scheduledAt) {
+      return call('CreateServiceOrder', [productId, note || '', scheduledAt || '']);
+    },
+
     /* ── AI 工具（v0.3，真接口）：检测 / 安装 / 启动 / 卸载 ──
        安装与卸载是长任务，进度经 ai:progress 事件推送（见 50-events.js）。
        返回值 { installed, version, binPath, changed, note }，note 是给人看的一句话。 */

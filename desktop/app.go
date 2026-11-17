@@ -164,6 +164,26 @@ func (a *App) Referral() (account.Referral, error) {
 	return a.svc.Referral()
 }
 
+// Products 增值服务商品目录（契约 v1.1 E10）。
+func (a *App) Products() ([]account.Product, error) {
+	return a.svc.Products()
+}
+
+// Entitlements 我的权益（契约 v1.1 E11）。
+func (a *App) Entitlements() ([]account.Entitlement, error) {
+	return a.svc.Entitlements()
+}
+
+// ServiceOrders 我的服务订单（契约 v1.1 E12b）。
+func (a *App) ServiceOrders() ([]account.ServiceOrder, error) {
+	return a.svc.ServiceOrders()
+}
+
+// CreateServiceOrder 提交增值服务订单（契约 v1.1 E12）。
+func (a *App) CreateServiceOrder(productID, note, scheduledAt string) (account.ServiceOrder, error) {
+	return a.svc.CreateServiceOrder(productID, note, scheduledAt)
+}
+
 // ConfigDir 返回配置目录（设置页展示用）。
 func (a *App) ConfigDir() string {
 	return a.svc.ConfigDir()

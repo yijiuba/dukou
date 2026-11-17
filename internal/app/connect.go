@@ -94,6 +94,8 @@ func (s *Service) CleanupResidue() (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
+	// 清理即断开：清单里残留的「使用中」当场收口，不等下一次状态查询
+	s.demoteStaleActive()
 	s.emitStatus(st)
 	return st, nil
 }
