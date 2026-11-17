@@ -2028,15 +2028,15 @@ window.addEventListener('keydown',function(e){
                       : '<div class="flag" style="background:#f3f4f6;color:#6b7280">·</div>';
     var isActive = s.status === 'active';
     var isPending = s.status === 'pending';
-    /* 主按钮按状态给：使用中不给切换（自相矛盾）、待部署给「部署」、
-       其余给「切到此线路」。待部署也没有体检——服务端还没装，点了只会失败。 */
-    var mainBtn = isActive
-      ? '<button class="btn sm" disabled title="当前正在使用这条线路">切到此线路</button>'
-      : isPending
-        ? '<button class="btn sm" onclick="openDeployModal(' + i + ')">部署</button>'
-        : (locked
-          ? '<button class="btn sm" disabled title="订阅已到期：仅保留 1 台可切换，续费后恢复">切到此线路</button>'
-          : '<button class="btn sm" onclick="switchTo(' + i + ')">切到此线路</button>');
+    /* 主按钮按状态给：使用中**不放任何切换按钮**（已连着它再摆一个
+       「切到此线路」，哪怕是灰的也自相矛盾——用户明确要求过）、
+       待部署给「部署」、其余给「切到此线路」。
+       待部署也没有体检——服务端还没装，点了只会失败。 */
+    var mainBtn = isPending
+      ? '<button class="btn sm" onclick="openDeployModal(' + i + ')">部署</button>'
+      : (locked
+        ? '<button class="btn sm" disabled title="订阅已到期：仅保留 1 台可切换，续费后恢复">切到此线路</button>'
+        : (isActive ? '' : '<button class="btn sm" onclick="switchTo(' + i + ')">切到此线路</button>'));
     var ops = locked
       ? mainBtn
         + '<button class="btn sm ghost" disabled>服务器体检</button>'
@@ -2616,6 +2616,10 @@ window.addEventListener('keydown',function(e){
          改验收目标时只改这一行。 */
       var DEV_TARGET = 'ai';
       if (/-dev$/.test(info.version || '')) {
+        if (DEV_TARGET === 'servers') {
+          setTimeout(function(){ nav('servers'); }, 1200);
+          return;
+        }
         if (DEV_TARGET === 'ai') {
           setTimeout(function(){ nav('ai'); renderAITools(); }, 1200);
           return;
