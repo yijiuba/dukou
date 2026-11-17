@@ -345,3 +345,10 @@ func (a *App) DeployServer(id string, in store.ServerInput) (deploy.Result, erro
 func (a *App) RefreshServerGeo(id string) (store.Server, error) {
 	return a.svc.RefreshServerGeo(id)
 }
+
+// SubscriptionLock 返回订阅锁定判定结果（契约 §十六权限分级）。
+// 前端用它渲染按钮禁用态；SwitchServer/Connect 内部同走这一份逻辑。
+// 未登录（无快照）不锁；评估失败时 Go 层返回 unlocked，前端按未锁渲染。
+func (a *App) SubscriptionLock() (app.LockInfo, error) {
+	return a.svc.SubscriptionLock()
+}

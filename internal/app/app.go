@@ -42,6 +42,12 @@ type Service struct {
 	// AI 工具的安装/卸载互斥：npm 全局目录是共享的，
 	// 并发跑两个 npm install 会互相锁住，界面表现为卡死无进度。
 	muAI sync.Mutex
+
+	// 订阅锁定状态（契约 §十六权限分级）：最后快照、登出时间、最近连接。
+	// 逻辑全部在 lockcheck.go，这里只存互斥保护的内存态。
+	muLock       sync.Mutex
+	lock         lockMem
+	lockRestored bool
 }
 
 // New 创建服务并打开本地存储。configDir 为空时用系统默认用户配置目录。

@@ -31,6 +31,10 @@ func (s *Service) Connect(serverID string) (Status, error) {
 	if srv.Status == "pending" {
 		return Status{}, errors.New("该服务器还没有部署服务端，请先在「代理服务器」页点「部署」")
 	}
+	// 订阅锁定（契约 §十六）：到期后仅保留 1 台可切换；评估失败放行（fail-open）。
+	if err := s.checkSwitchAllowed(serverID); err != nil {
+		return Status{}, err
+	}
 
 	user, pass, err := s.store.ProxyCredentials(serverID)
 	if err != nil {
@@ -56,6 +60,7 @@ func (s *Service) Connect(serverID string) (Status, error) {
 
 	s.markServerStatus(serverID, "active")
 	s.clearOtherActive(serverID)
+	s.noteConnected(serverID) // 最近成功连接：锁定时保留 1 台规则的优先项（契约 §十六）
 	s.emitStatus(st)
 	// 已连接才累计"有效在线"（契约 E9 口径），未连接不上报
 	s.startHeartbeat()
@@ -113,6 +118,11 @@ func (s *Service) SwitchServer(serverID string) error {
 	}
 	if srv.Status == "pending" {
 		return fmt.Errorf("「%s」还没有部署服务端，请先部署再切换", srv.Name)
+	}
+	// 切换的锁定检查必须在断开之前：若放在 Connect 里才发现锁着，
+	// 用户已经先被断开了——「从连着变成断了而且没连上」。
+	if err := s.checkSwitchAllowed(serverID); err != nil {
+		return err
 	}
 	if err := s.Disconnect(); err != nil {
 		return fmt.Errorf("切换前断开旧线路失败: %w", err)
