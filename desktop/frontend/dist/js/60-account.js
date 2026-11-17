@@ -258,6 +258,7 @@
     renderPlanRow(page);
     renderReferral(page);
     renderBanner(page);
+    renderLevelTable();
   }
 
   /* 等级行：文案 + 进度条 + 下一级提示 */
@@ -282,7 +283,8 @@
       if (bar) bar.style.width = '0%';
       return;
     }
-    var nextAt = r.level >= 4 ? 100 : [0, 100, 300, 800][r.level];
+    var next = nextLevelOf(r);
+    var nextAt = next ? next.minHours : 0;
     var pct = nextAt > 0 ? Math.min(100, Math.round(r.onlineHours / nextAt * 100)) : 100;
     if (textDiv) {
       textDiv.innerHTML = 'Lv' + r.level + ' ' + r.levelName + ' · 有效在线 ' + r.onlineHours + 'h'
@@ -291,6 +293,57 @@
     }
     if (bar) bar.style.width = pct + '%';
     if (nextDiv) nextDiv.textContent = r.nextLevelHint || '';
+  }
+
+  /* 下一档等级：取 levels[] 中 level 更大的最近一档（后台可增删，客户端不写死门槛） */
+  function nextLevelOf(r) {
+    var lv = (r && r.levels) || [];
+    for (var i = 0; i < lv.length; i++) {
+      if (lv[i].level > r.level) return lv[i];
+    }
+    return null;
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /* 等级说明弹窗：表格按 levels[] 渲染，规则文案按 rules{} 渲染，全部来自后台配置 */
+  function renderLevelTable() {
+    var table = document.getElementById('levelTable');
+    var note = document.getElementById('levelRulesNote');
+    var r = state.referral;
+    if (!table || !r || !r.levels || !r.levels.length) return;
+    var html = '<tr><th>等级</th><th>升级条件（满足其一）</th><th style="width:60px">返佣</th></tr>';
+    for (var i = 0; i < r.levels.length; i++) {
+      var l = r.levels[i];
+      var cond;
+      if (l.minHours > 0 && l.minOrders > 0) cond = '有效在线满 ' + l.minHours + ' 小时，或累计成交 ' + l.minOrders + ' 单';
+      else if (l.minHours > 0) cond = '有效在线满 ' + l.minHours + ' 小时';
+      else if (l.minOrders > 0) cond = '累计成交 ' + l.minOrders + ' 单';
+      else cond = l.note || '注册即是';
+      var hl = l.level === r.level ? ' style="background:#f8fafc"' : '';
+      html += '<tr' + hl + '><td><b>Lv' + l.level + ' ' + esc(l.name) + '</b></td><td>'
+        + esc(cond) + '</td><td>' + l.commissionPct + '%</td></tr>';
+    }
+    table.innerHTML = html;
+    if (note) note.innerHTML = rulesNote(r.rules);
+  }
+
+  function rulesNote(rules) {
+    if (!rules) return '';
+    var period = { instant: '实时结算', weekly: '按周结算', monthly: '按月结算' }[rules.settlePeriod] || '按月结算';
+    var scope = (rules.allowSecondLevel && rules.secondLevelPct > 0)
+      ? '一级好友下单返你，二级返 ' + rules.secondLevelPct + '%'
+      : '只做一级（好友直接下单返你），不做二级';
+    var base = rules.commissionBase === 'net_profit' ? '按订单净利计佣' : '按订单金额计佣';
+    return '<b>有效在线</b>：App 打开且代理处于「已连接」才计时，每天最多计 10 小时（后台挂着进程不算）。<br>'
+      + '<b>双轨升级</b>：在线时长与推广业绩取较高的一档，两条路都能升级。<br>'
+      + '<b>返佣规则</b>：' + scope + '；' + base + '；' + period
+      + '，满 ' + yuan(rules.withdrawMinCents) + ' 可提现'
+      + (rules.payoutNote ? '；' + esc(rules.payoutNote) : '') + '。';
   }
 
   /* 试用行：未领取 / 试用中 / 已结束 三态 */

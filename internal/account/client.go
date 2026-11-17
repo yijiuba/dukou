@@ -119,21 +119,46 @@ type Order struct {
 
 // Referral 对应契约 E8。
 type Referral struct {
-	Code          string  `json:"code"`
+	Code              string        `json:"code"`
+	Level             int           `json:"level"`
+	LevelName         string        `json:"levelName"`
+	CommissionPct     int           `json:"commissionPct"`
+	OnlineHours       float64       `json:"onlineHours"`
+	Orders            int           `json:"orders"`
+	EarnedCents       int           `json:"earnedCents"`
+	BalanceCents      int           `json:"balanceCents"`
+	WithdrawableCents int           `json:"withdrawableCents"`
+	NextLevelHint     string        `json:"nextLevelHint"`
+	Levels            []LevelRule   `json:"levels"`
+	Rules             ReferralRules `json:"rules"`
+}
+
+// LevelRule 等级规则（后台可配置，客户端只渲染不判定）。
+type LevelRule struct {
 	Level         int     `json:"level"`
-	LevelName     string  `json:"levelName"`
+	Name          string  `json:"name"`
+	MinHours      float64 `json:"minHours"`
+	MinOrders     int     `json:"minOrders"`
 	CommissionPct int     `json:"commissionPct"`
-	OnlineHours   float64 `json:"onlineHours"`
-	Orders        int     `json:"orders"`
-	EarnedCents   int     `json:"earnedCents"`
-	BalanceCents  int     `json:"balanceCents"`
-	NextLevelHint string  `json:"nextLevelHint"`
+	Badge         string  `json:"badge"`
+	Note          string  `json:"note"`
+}
+
+// ReferralRules 返佣结算规则（后台可配置）。
+type ReferralRules struct {
+	CommissionBase   string `json:"commissionBase"` // order_amount | net_profit
+	SettlePeriod     string `json:"settlePeriod"`   // instant | weekly | monthly
+	WithdrawMinCents int    `json:"withdrawMinCents"`
+	AllowSecondLevel bool   `json:"allowSecondLevel"`
+	SecondLevelPct   int    `json:"secondLevelPct"`
+	TrialCommission  bool   `json:"trialCommission"`
+	PayoutNote       string `json:"payoutNote"`
 }
 
 // Product 对应契约 v1.1 E10（增值服务商品目录）。
 type Product struct {
 	ID         string          `json:"id"`
-	Kind       string          `json:"kind"`     // course | service
+	Kind       string          `json:"kind"` // course | service
 	Name       string          `json:"name"`
 	Summary    string          `json:"summary"`
 	PriceCents int             `json:"priceCents"`

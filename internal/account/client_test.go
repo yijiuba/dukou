@@ -263,3 +263,41 @@ func TestCreateServiceOrderSendsRPCArgs(t *testing.T) {
 		t.Fatalf("返回解析错误: %+v", o)
 	}
 }
+
+// 等级与返佣规则（契约 v1.2）：后台可配置，客户端只渲染 levels/rules 不自行判定。
+func TestReferralParsesLevelsAndRules(t *testing.T) {
+	var path string
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.Path
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"code": "DUK-ABC12", "level": 2, "levelName": "舵手", "commissionPct": 20,
+			"onlineHours": 150.5, "orders": 4, "earnedCents": 1800,
+			"balanceCents": 1800, "withdrawableCents": 0,
+			"nextLevelHint": "再有效在线 150 小时 或 再成交 6 单 升到 Lv3 船长",
+			"levels": []map[string]any{
+				{"level": 1, "name": "船夫", "minHours": 0, "minOrders": 0, "commissionPct": 15},
+				{"level": 2, "name": "舵手", "minHours": 100, "minOrders": 3, "commissionPct": 20},
+				{"level": 3, "name": "船长", "minHours": 300, "minOrders": 10, "commissionPct": 25},
+			},
+			"rules": map[string]any{
+				"commissionBase": "order_amount", "settlePeriod": "monthly",
+				"withdrawMinCents": 5000, "allowSecondLevel": false,
+				"secondLevelPct": 0, "trialCommission": false, "payoutNote": "按月结算",
+			},
+		})
+	})
+	c.SetSession(Session{AccessToken: "tok", Email: "a@b.com"})
+	r, err := c.Referral()
+	if err != nil {
+		t.Fatalf("Referral: %v", err)
+	}
+	if path != "/.cloud/database/rest/rpc/referral_snapshot" {
+		t.Fatalf("RPC 路径错误: %s", path)
+	}
+	if len(r.Levels) != 3 || r.Levels[1].MinHours != 100 || r.Levels[2].CommissionPct != 25 {
+		t.Fatalf("等级规则解析错误: %+v", r.Levels)
+	}
+	if r.Rules.SettlePeriod != "monthly" || r.Rules.WithdrawMinCents != 5000 || r.Rules.AllowSecondLevel {
+		t.Fatalf("返佣规则解析错误: %+v", r.Rules)
+	}
+}
