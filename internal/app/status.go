@@ -28,7 +28,21 @@ func (s *Service) ProxyStatus() (Status, error) {
 	if !st.Connected {
 		s.demoteStaleActive()
 	}
+	s.fillLatency(&st)
 	return st, nil
+}
+
+// fillLatency 按 store 里的服务器地址量真实 TCP RTT，回填延迟字段。
+//
+// 稳态查询（ProxyStatus）的延迟在这里补：proxy 层的快照没有服务器
+// host:port，只有 store 知道。查不到服务器（已被删）就保持 0，前端显示 —。
+func (s *Service) fillLatency(st *Status) {
+	if !st.Connected || st.ServerID == "" {
+		return
+	}
+	if srv, ok := s.store.Get(st.ServerID); ok {
+		st.LatencyMS = proxy.TCPRTTMS(srv.Host, srv.ServerPort)
+	}
 }
 
 // demoteStaleActive 把所有仍标记为「使用中」的服务器改回待机。

@@ -164,7 +164,7 @@ func Start(up Upstream, o Options, fetch Fetcher) (Status, error) {
 		return Status{}, err
 	}
 
-	ip, ms, err := probeVia(httpPort)
+	ip, _, err := probeVia(httpPort)
 	if err != nil {
 		// 起了进程、改了系统代理，但实际不通：必须整体回滚，
 		// 不能留下「界面显示已连接、浏览器打不开」的状态。
@@ -181,7 +181,7 @@ func Start(up Upstream, o Options, fetch Fetcher) (Status, error) {
 		ServerName: up.Name,
 		LocalPort:  httpPort,
 		EgressIP:   ip,
-		LatencyMS:  ms,
+		LatencyMS:  TCPRTTMS(up.Host, up.Port), // TCP 建连 RTT，非 HTTPS 总耗时（见 rtt.go）
 		Since:      st.Since,
 	}, nil
 }
@@ -257,9 +257,10 @@ func Current(o Options) (Status, error) {
 		LocalPort:  st.LocalPort,
 		Since:      st.Since,
 	}
-	if ip, ms, err := probeVia(st.LocalPort); err == nil {
+	if ip, _, err := probeVia(st.LocalPort); err == nil {
 		res.EgressIP = ip
-		res.LatencyMS = ms
+		// LatencyMS 不在这里填：快照没有服务器地址，app 层 ProxyStatus
+		// 按 store 里的 host:port 量真实 RTT（rtt.go）。
 	}
 	return res, nil
 }

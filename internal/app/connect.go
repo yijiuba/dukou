@@ -61,6 +61,7 @@ func (s *Service) Connect(serverID string) (Status, error) {
 	s.markServerStatus(serverID, "active")
 	s.clearOtherActive(serverID)
 	s.noteConnected(serverID) // 最近成功连接：锁定时保留 1 台规则的优先项（契约 §十六）
+	s.fillLatency(&st)        // 真实延迟 = TCP 建连 RTT（覆盖 proxy 层可能带出的旧口径）
 	s.emitStatus(st)
 	// 已连接才累计"有效在线"（契约 E9 口径），未连接不上报
 	s.startHeartbeat()

@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"net"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -74,5 +76,37 @@ func TestPACFileURL(t *testing.T) {
 	u := pacFileURL(`C:\Users\x\AppData\Roaming\dukou\proxy.pac`)
 	if u != "file:///C:/Users/x/AppData/Roaming/dukou/proxy.pac" {
 		t.Errorf("file URL 转换错误: %s", u)
+	}
+}
+
+// TCPRTTMS 必须量的是 TCP 建连，且失败/非法输入返回 0 而不是编数字。
+func TestTCPRTTMS(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_ = c.Close()
+		}
+	}()
+
+	port, _ := strconv.Atoi(strings.Split(ln.Addr().String(), ":")[1])
+	ms := TCPRTTMS("127.0.0.1", port)
+	if ms <= 0 || ms > 1500 {
+		t.Fatalf("本机监听器 RTT 异常: %dms", ms)
+	}
+
+	// 不存在的端口：3 次全失败必须返回 0，不能编造延迟
+	if dead := TCPRTTMS("127.0.0.1", 1); dead != 0 {
+		t.Fatalf("死端口应返回 0, got %d", dead)
+	}
+	if TCPRTTMS("", 0) != 0 {
+		t.Fatalf("非法输入应返回 0")
 	}
 }
