@@ -57,6 +57,7 @@
 |---|---|---|---|
 | 11-16 17:35 | `internal/app` 编译报 `undefined: fmt`，约 5 分钟后自修 | M3 线 | 已恢复，无需动作 |
 | 11-16 19:06 | 多服务器切换补单测时新增 `internal/app/proxy_driver.go`（`proxyDriver` 接口）：`Connect/Disconnect/ProxyStatus/CleanupResidue` 改走 `s.drv()`，**对外签名与行为不变**；`SwitchServer` 增加「目标存在」前置校验 | M3 线 | 已提交 `2c9ae59`。账号线若新增代理调用，请用 `s.drv()` 而不是直接调 `proxy.*` |
+| 11-17 11:35 | **新任务交接**：订阅权限分割审计完成（《资料/开发/权限分割审计报告-v0.2.md》），两处 P1：①`expiredDemo` 演示开关未接真实 `account.locked`（index.html:1983/2030-2043/2106-2113/2185-2188）；②AI 页宣称订阅解锁但无门控。**请账号线按《登录与订阅权限分割-接口会话对接单-v1.0.md》接单**：先定稿 D1/D2，再做客户端改造 C1（60-account.js 归你、index.html 走分区精确编辑）与 C2（SwitchServer 加 Locked 检查，动 connect.go 前在 §一 登记） | 客户端/审计会话 → 账号线 | 待接单 |
 
 ## 五、动共享文件前的 10 秒自检
 
