@@ -782,7 +782,7 @@ window.addEventListener('keydown',function(e){
               <a href="javascript:void(0)" onclick="openModal('levelModal')" style="color:#0f766e;text-decoration:none;margin-left:8px">等级说明 ›</a>
             </div>
             <div class="level-bar"><i></i></div>
-            <div style="font-size:12px;color:#6b7280">再在线 4 小时或成交 1 单升 Lv3（返佣 25%）</div>
+            <div style="font-size:12px;color:#6b7280">登录后查看升级进度</div>
           </div>
           <button class="btn ghost sm">退出登录</button>
         </div>
@@ -1186,22 +1186,17 @@ window.addEventListener('keydown',function(e){
   </div>
 </div>
 
-<!-- 等级说明 -->
+<!-- 等级说明（表格与规则文案由 60-account.js 按接口数据渲染，后台可配置） -->
 <div class="modal-mask" id="levelModal">
   <div class="modal wide">
     <div class="modal-head">等级与返佣说明</div>
     <div class="modal-body">
-      <table class="m-table">
+      <table class="m-table" id="levelTable">
         <tr><th>等级</th><th>升级条件（满足其一）</th><th style="width:60px">返佣</th></tr>
-        <tr><td><b>Lv1 船夫</b></td><td>注册即是</td><td>15%</td></tr>
-        <tr><td><b>Lv2 舵手</b></td><td>有效在线满 100 小时，或累计成交 3 单</td><td>20%</td></tr>
-        <tr><td><b>Lv3 船长</b></td><td>有效在线满 300 小时，或累计成交 10 单</td><td>25%</td></tr>
-        <tr><td><b>Lv4 摆渡人</b></td><td>有效在线满 800 小时，或累计成交 30 单</td><td>30%</td></tr>
       </table>
-      <div class="modal-note">
+      <div class="modal-note" id="levelRulesNote">
         <b>有效在线</b>：App 打开且代理处于「已连接」才计时，每天最多计 10 小时（后台挂着进程不算）。<br>
-        <b>双轨升级</b>：在线时长与推广业绩取较高的一档，两条路都能升级。<br>
-        <b>返佣规则</b>：只做一级（好友直接下单返你），不做二级；按月结算，满 ¥50 可提现；支付资质就绪前可抵扣订阅。
+        <b>双轨升级</b>：在线时长与推广业绩取较高的一档，两条路都能升级。
       </div>
     </div>
     <div class="modal-foot"><button class="btn sm" onclick="closeModal('levelModal')">知道了</button></div>
@@ -2393,6 +2388,11 @@ window.addEventListener('keydown',function(e){
     /* 上次异常退出留下的代理设置：显示醒目横条，一键清理（§六验收） */
     var rb = document.getElementById('residueBar');
     if (rb) rb.style.display = _connStatus.residue ? 'flex' : 'none';
+
+    /* 后端可能在这次查询里做了状态对账（未连接时收口残留的「使用中」），
+       快捷卡/线路条读的是清单快照，要跟着重渲染，否则会出现
+       「首页未连接、快捷卡还写使用中」的矛盾（真机踩过）。 */
+    refreshHomeQuick();
 
     /* 出口探测中：3 秒后再问一次后端（后端 Current 会重新探测）；
        拿到出口或判定失败就停。断开/重连时 _egressRetry 由上面归零。 */
