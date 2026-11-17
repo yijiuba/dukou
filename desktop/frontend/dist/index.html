@@ -2644,7 +2644,7 @@ window.addEventListener('keydown',function(e){
          供自动化验证；正式构建版本号不带 -dev，不会触发。
          可选值：'ai'（AI 工具页检测）| 'doctor'（体检）| 'backup'（备份提交流程）。
          改验收目标时只改这一行。 */
-      var DEV_TARGET = 'me';
+      var DEV_TARGET = 'ai';
       if (/-dev$/.test(info.version || '')) {
         if (DEV_TARGET === 'lock') {
           /* dev 自检：订阅锁定渲染验收——进服务器页、触发 -dev 演示开关、
