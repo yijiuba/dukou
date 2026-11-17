@@ -10,6 +10,10 @@ import (
 // accountClient 返回账号服务客户端（懒加载单例）。
 //
 // token 从加密库恢复：App 重启后登录态不丢，用户不需要每天重新登录。
+// 启动对账：access token 已过期时立刻主动续期；refresh token 是轮换制的
+// 一次性凭证——续期成功后经钩子把新 token 落盘（见 client.SetRefreshHook）。
+// 若服务端明确告知会话已作废（invalid_grant），清掉本地登录态转登录页，
+// 绝不让 UI 停在「已登录但什么都加载不出来」的僵尸态。
 func (s *Service) accountClient() (*account.Client, error) {
 	s.muAccount.Lock()
 	defer s.muAccount.Unlock()
@@ -17,6 +21,10 @@ func (s *Service) accountClient() (*account.Client, error) {
 		return s.acct, nil
 	}
 	c := account.New(account.Config{})
+	// 轮换出的新 refresh token 必须落盘，否则重启即 401（2026-11-17 真机踩坑）
+	c.SetRefreshHook(func(ns account.Session) {
+		_ = s.saveSession(ns)
+	})
 	blob, ok, err := s.store.LoadSession()
 	if err != nil {
 		// 解密失败不能静默当作未登录——要显式告诉用户重新登录
@@ -26,10 +34,26 @@ func (s *Service) accountClient() (*account.Client, error) {
 		var sess account.Session
 		if jerr := json.Unmarshal([]byte(blob), &sess); jerr == nil && sess.AccessToken != "" {
 			c.SetSession(sess)
+			if expired(sess.ExpiresAt) {
+				if rerr := c.RefreshSession(); rerr != nil && account.IsAuthError(rerr) {
+					// 会话已被服务端作废：清本地、换干净客户端，UI 如实显示未登录
+					_ = s.store.ClearSession()
+					c = account.New(account.Config{})
+				}
+			}
 		}
 	}
 	s.acct = c
 	return c, nil
+}
+
+// expired 判断会话过期时间是否已过（空值视为未过期，由服务端 401 兜底）。
+func expired(iso string) bool {
+	if iso == "" {
+		return false
+	}
+	t, err := time.Parse(time.RFC3339, iso)
+	return err == nil && time.Now().After(t)
 }
 
 // saveSession 把登录态加密落盘（与 SSH 凭据同一套 AES-GCM 库）。

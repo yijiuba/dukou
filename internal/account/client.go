@@ -229,10 +229,11 @@ type Client struct {
 	cfg Config
 	hc  *http.Client
 
-	mu      sync.RWMutex
-	access  string
-	refresh string
-	email   string
+	mu        sync.RWMutex
+	access    string
+	refresh   string
+	email     string
+	onRefresh func(Session) // 刷新成功后的回调（用于把轮换出的新 token 落盘）
 }
 
 // New 创建客户端。config 为零值时使用默认数据面。
@@ -248,6 +249,14 @@ func (c *Client) SetSession(s Session) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.access, c.refresh, c.email = s.AccessToken, s.RefreshToken, s.Email
+}
+
+// SetRefreshHook 注册刷新成功回调。**必须注册**：服务端的 refresh token 是
+// 一次性的（轮换制），刷新成功后内存里的新 token 若不落盘，App 重启就会
+// 加载到已作废的旧 token，表现为永久 401「session is invalid」
+// （2026-11-17 真机踩坑：登录次日起我的页全部「加载中」）。
+func (c *Client) SetRefreshHook(fn func(Session)) {
+	c.onRefresh = fn
 }
 
 // Session 返回当前登录态（供落盘）。
@@ -467,8 +476,17 @@ func (c *Client) rpc(fn string, args map[string]any, out any) error {
 // do 是所有请求的唯一出口：统一注入请求头、统一错误翻译、统一 401 续期。
 func (c *Client) do(method, path string, body any, out any, auth bool) error {
 	if err := c.doOnce(method, path, body, out, auth); err != nil {
-		if auth && IsAuthError(err) && c.tryRefresh() {
-			return c.doOnce(method, path, body, out, auth)
+		if auth && IsAuthError(err) {
+			if rerr := c.tryRefresh(); rerr == nil {
+				return c.doOnce(method, path, body, out, auth)
+			} else if IsAuthError(rerr) {
+				// refresh token 也被服务端作废（invalid_grant 等）——会话彻底死了，
+				// 给用户一句能执行的指引，而不是透传英文原文。
+				return &APIError{Code: "AUTH:SESSION", Message: "登录已过期，请重新登录", HTTPStatus: http.StatusUnauthorized}
+			} else {
+				// 网络原因续期失败：保留会话，错误如实上报（下次请求再试）。
+				return err
+			}
 		}
 		return err
 	}
@@ -529,13 +547,14 @@ func (c *Client) doOnce(method, path string, body any, out any, auth bool) error
 	return nil
 }
 
-// tryRefresh 用 refresh token 换新会话。成功返回 true。
-func (c *Client) tryRefresh() bool {
+// tryRefresh 用 refresh token 换新会话。成功则更新内存、触发落盘钩子，返回 nil。
+// 失败返回错误：AUTH 类（token 已作废）或网络类，由调用方区分处理。
+func (c *Client) tryRefresh() error {
 	c.mu.RLock()
 	rt := c.refresh
 	c.mu.RUnlock()
 	if rt == "" {
-		return false
+		return &APIError{Code: "AUTH:SESSION", Message: "登录已过期，请重新登录", HTTPStatus: http.StatusUnauthorized}
 	}
 	var raw struct {
 		AccessToken  string `json:"access_token"`
@@ -546,16 +565,37 @@ func (c *Client) tryRefresh() bool {
 		"grant_type":    "refresh_token",
 		"refresh_token": rt,
 	}, &raw, false)
-	if err != nil || raw.AccessToken == "" {
-		return false
+	if err != nil {
+		return err
+	}
+	if raw.AccessToken == "" {
+		return &APIError{Code: "AUTH:SESSION", Message: "登录已过期，请重新登录", HTTPStatus: http.StatusUnauthorized}
+	}
+	expires := ""
+	if raw.ExpiresIn > 0 {
+		expires = time.Now().Add(time.Duration(raw.ExpiresIn) * time.Second).UTC().Format(time.RFC3339)
 	}
 	c.mu.Lock()
 	c.access = raw.AccessToken
-	if raw.RefreshToken != "" {
-		c.refresh = raw.RefreshToken
+	newRefresh := raw.RefreshToken
+	if newRefresh != "" {
+		c.refresh = newRefresh
+	} else {
+		newRefresh = rt // 服务端未轮换时沿用旧的
 	}
+	email := c.email
 	c.mu.Unlock()
-	return true
+	// 轮换出的新 refresh token 必须立刻落盘（见 SetRefreshHook 注释）。
+	if c.onRefresh != nil {
+		c.onRefresh(Session{AccessToken: raw.AccessToken, RefreshToken: newRefresh, Email: email, ExpiresAt: expires})
+	}
+	return nil
+}
+
+// RefreshSession 主动续期（不针对某个请求）。App 启动发现 access token
+// 已过期时调用；返回 AUTH 类错误表示会话已被服务端作废，应清理转登录态。
+func (c *Client) RefreshSession() error {
+	return c.tryRefresh()
 }
 
 // parseError 把服务端的各种错误体翻译成带前缀码的 APIError。

@@ -166,6 +166,91 @@ func TestAutoRefreshOn401(t *testing.T) {
 	}
 }
 
+// refresh token 轮换后必须触发落盘钩子——不落盘则重启即 401
+// （2026-11-17 真机踩坑：登录次日起我的页三处「加载中」）。
+func TestRefreshHookFiresOnRotation(t *testing.T) {
+	var calls int32
+	var hookSession Session
+	var hookCalls int32
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.cloud/database/rest/rpc/account_snapshot":
+			if atomic.AddInt32(&calls, 1) > 1 {
+				_, _ = w.Write([]byte(`{"trialAvailable":true,"locked":false}`))
+				return
+			}
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"code":"AUTH:SESSION","message":"expired"}`))
+		case "/.cloud/auth/v1/token":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "new-a", "refresh_token": "rt-new", "expires_in": 3600,
+			})
+		default:
+			t.Errorf("非预期路径 %s", r.URL.Path)
+		}
+	})
+	c.SetRefreshHook(func(s Session) {
+		atomic.AddInt32(&hookCalls, 1)
+		hookSession = s
+	})
+	c.SetSession(Session{AccessToken: "old", RefreshToken: "rt", Email: "a@b.com"})
+
+	if _, err := c.Account(); err != nil {
+		t.Fatalf("续期后应成功: %v", err)
+	}
+	if hookCalls != 1 {
+		t.Fatalf("落盘钩子应恰好触发 1 次, 实际 %d", hookCalls)
+	}
+	if hookSession.RefreshToken != "rt-new" || hookSession.AccessToken != "new-a" || hookSession.Email != "a@b.com" {
+		t.Fatalf("钩子拿到的会话不完整: %+v", hookSession)
+	}
+	if hookSession.ExpiresAt == "" {
+		t.Fatal("钩子会话应带过期时间")
+	}
+}
+
+// refresh token 已被服务端作废（invalid_grant）时，错误要翻成
+// 可执行的中文指引，而不是透传 "the session is invalid..."。
+func TestDeadRefreshTokenReturnsFriendlyError(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.cloud/database/rest/rpc/account_snapshot":
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"the session is invalid"}`))
+		case "/.cloud/auth/v1/token":
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"the session is invalid, expired or issued for another client"}`))
+		default:
+			t.Errorf("非预期路径 %s", r.URL.Path)
+		}
+	})
+	c.SetSession(Session{AccessToken: "expired", RefreshToken: "dead"})
+
+	_, err := c.Account()
+	if err == nil {
+		t.Fatal("应报错")
+	}
+	if !IsAuthError(err) {
+		t.Fatalf("应识别为会话失效: %v", err)
+	}
+	if err.Error() != "登录已过期，请重新登录" {
+		t.Fatalf("错误信息应为中文指引, 实际 %q", err.Error())
+	}
+}
+
+// RefreshSession 主动续期：成功返回 nil，会话被作废返回 AUTH 类错误。
+func TestRefreshSessionDead(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
+	})
+	c.SetSession(Session{AccessToken: "expired", RefreshToken: "dead"})
+	err := c.RefreshSession()
+	if err == nil || !IsAuthError(err) {
+		t.Fatalf("应返回 AUTH 类错误, 实际 %v", err)
+	}
+}
+
 // 限频错误要把服务端的中文提示原样传给用户，而不是吞成"HTTP 429"。
 func TestRateLimitMessagePreserved(t *testing.T) {
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {

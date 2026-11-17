@@ -27,7 +27,9 @@
     loggedIn: false,
     email: '',
     account: null,
+    accountErr: null, // 上次 Account 拉取失败的原因（展示失败态，绝不永久「加载中」）
     referral: null,
+    referralErr: null,
     plans: null,
     pending: null // {email, verificationId, isExistingUser}
   };
@@ -58,6 +60,18 @@
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
   }
   function yuan(cents) { return '¥' + (cents / 100).toFixed(2).replace(/\.00$/, ''); }
+  /* 会话失效类错误（token 作废且续期失败）：引导重新登录，而不是干等 */
+  function isAuthErr(e) {
+    var s = errText(e);
+    return s.indexOf('重新登录') >= 0 || s.indexOf('登录已过期') >= 0
+      || s.indexOf('session is invalid') >= 0;
+  }
+  /* 失败态共用 HTML：会话失效给「重新登录」，其它给「重试」 */
+  function failAction(authErr) {
+    return authErr
+      ? '会话已失效 <a href="javascript:void(0)" onclick="accLogin()" style="color:#dc2626;text-decoration:none">重新登录 ›</a>'
+      : '读取失败 <a href="javascript:void(0)" onclick="accRetry()" style="color:#0f766e;text-decoration:none">重试 ›</a>';
+  }
 
   /* ── 样式（一次性注入） ─────────────────────────────────── */
 
@@ -276,9 +290,13 @@
     }
     var bar = $('.level-bar i', head);
     if (!r) {
-      if (textDiv) textDiv.innerHTML = state.loggedIn
-        ? '等级加载中…'
-        : '登录后查看等级与有效在线时长 <a href="javascript:void(0)" onclick="accLogin()" style="color:#0f766e;text-decoration:none;margin-left:8px">去登录 ›</a>';
+      if (textDiv) {
+        textDiv.innerHTML = state.loggedIn
+          ? (state.referralErr
+              ? failAction(isAuthErr(state.referralErr))
+              : '等级加载中…')
+          : '登录后查看等级与有效在线时长 <a href="javascript:void(0)" onclick="accLogin()" style="color:#0f766e;text-decoration:none;margin-left:8px">去登录 ›</a>';
+      }
       if (nextDiv) nextDiv.textContent = state.loggedIn ? '' : '推广大使按有效在线时长与成交单数双轨升级';
       if (bar) bar.style.width = '0%';
       return;
@@ -362,8 +380,15 @@
       return;
     }
     if (!a) {
-      st.textContent = '加载中…';
+      if (state.accountErr) {
+        st.innerHTML = failAction(isAuthErr(state.accountErr));
+        st.style.color = isAuthErr(state.accountErr) ? '#dc2626' : '#9ca3af';
+      } else {
+        st.textContent = '加载中…';
+        st.style.color = '#6b7280';
+      }
       op.innerHTML = '';
+      if (ex) ex.textContent = '—';
       return;
     }
     if (a.trialAvailable) {
@@ -434,7 +459,13 @@
     var bal = card.querySelector('b[style*="10b981"], b');
 
     if (!state.loggedIn || !state.referral) {
-      if (input) input.value = state.loggedIn ? '加载中…' : '登录后生成你的专属推广链接';
+      if (input) {
+        input.value = !state.loggedIn
+          ? '登录后生成你的专属推广链接'
+          : (state.referralErr
+              ? (isAuthErr(state.referralErr) ? '会话已失效，请重新登录' : '推广信息读取失败，请重试')
+              : '加载中…');
+      }
       for (var k = 0; k < cells.length; k++) cells[k].textContent = '—';
       if (bal && bal.tagName === 'B') bal.textContent = '¥0';
       return;
@@ -449,7 +480,14 @@
       cells[2].textContent = String(r.orders);
       cells[3].textContent = yuan(r.earnedCents);
     }
-    if (bal && bal.tagName === 'B') bal.textContent = yuan(r.balanceCents);
+    if (bal && bal.tagName === 'B') {
+      bal.textContent = yuan(r.balanceCents);
+      /* 提现门槛随后台规则下发，替换 index.html 里的静态演示文案 */
+      var note = bal.parentNode && bal.parentNode.querySelector('span');
+      if (note && r.rules && r.rules.withdrawMinCents > 0) {
+        note.textContent = '满 ' + yuan(r.rules.withdrawMinCents) + ' 可提';
+      }
+    }
   }
 
   /* 到期锁定提示条（锁定只影响省心功能，代理不受影响——契约 §4 口径） */
@@ -476,6 +514,8 @@
 
   function refresh() {
     if (!API.hasBackend()) return;
+    state.accountErr = null;
+    state.referralErr = null;
     API.sessionInfo().then(function (s) {
       state.loggedIn = !!(s && s.loggedIn);
       state.email = (s && s.email) || '';
@@ -493,12 +533,23 @@
         renderMe();
         /* 拉到新快照即刷新锁定态——续订/领试用后无需重启客户端（契约 §十六 16.2） */
         try { window.refreshLockState(); } catch (e) {}
-      }).catch(function (e) { toast('订阅状态读取失败：' + errText(e)); });
+      }).catch(function (e) {
+        /* 失败必须落到界面上（失败态 + 重试/重登入口），
+           绝不能让「加载中…」永远挂在那（2026-11-17 真机踩坑） */
+        state.account = null;
+        state.accountErr = e;
+        renderMe();
+        toast('订阅状态读取失败：' + errText(e));
+      });
 
       API.referral().then(function (r) {
         state.referral = r;
         renderMe();
-      }).catch(function () { /* 推广信息失败不影响主流程 */ });
+      }).catch(function (e) {
+        state.referral = null;
+        state.referralErr = e;
+        renderMe(); // 等级/推广链接也要如实显示失败，不静默
+      });
 
       API.plans().then(function (p) { state.plans = p || []; }).catch(function () { });
     }).catch(function (e) {
@@ -539,6 +590,8 @@
     window.claimTrial = window.accClaimTrial;
     void origClaimTrial;
     window.accLogin = openAuth;
+    /* 失败态的「重试」入口：清掉错误标记重新拉取 */
+    window.accRetry = function () { refresh(); };
     window.accBuy = function () {
       if (typeof window.ext === 'function') {
         window.ext('https://dukou.dev/pricing', '订阅购买',

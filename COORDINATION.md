@@ -9,6 +9,7 @@
 
 | 登记时间 | 会话 / 任务 | 占用文件 | 意图 | 状态 |
 |---|---|---|---|---|
+| 11-17 12:55 | 客户端/审计线 · 真机验收排查 | `internal/account/client.go`（refresh 落盘钩子）、`internal/app/account.go`（启动对账）、`js/60-account.js`（加载失败态）、`index.html` 828-829/1599（静态演示数字） | 真机复现：昨日登录的 refresh token 轮换后未落盘→重启即 401，我的页三处永久「加载中」。修会话续期链路+失败态 UI | **已完成**（见 §四 11-17 13:05 行），dev 真机验收通过；待用户重登后复测 |
 | 11-17 11:52 | 客户端/审计线 C1-C3 | `internal/app/connect.go`（SwitchServer/Connect 加锁检查）、`internal/app/{lockcheck.go,lockcheck_test.go}`（新增）、`internal/store/lockstate.go`（新增）、`internal/app/app.go`（struct 字段区末尾追加）、`desktop/app.go`（末尾追加转发）、`index.html`（服务器页分区+st3+806-813 清单+expiredModal 文案）、`js/20-api.js`（DukouAPI 末尾追加 subscriptionLock） | 对接单 v1.1 D2 定稿落地：expiredDemo→真实 locked、SwitchServer 加 SUB:LOCKED、文案修正 | **已完成** `be5de35`/`17cc272`，dev 真机截图验收通过；待账号线在 60-account.js 拉到新快照后调 `window.refreshLockState()`（续订即解锁），真实账号联调项见对接单 §四 |
 | 11-16 17:58 | 账号线 T9 | `internal/account/**`、`js/60-account.js`、`js/50-events.js`（末尾追加加载器） | 登录弹窗 + 订阅状态，运行时注入，**未碰 index.html** | 已提交 `44b9956`，UI 待真机验收 |
 | 11-16 19:06 | M3 客户端线 | `internal/app/{app,connect,status}.go`（仅内部实现：代理驱动可注入）、`index.html` AI 工具页 | 多服务器切换单测 + AI 工具接真 | 已完成并提交（`2c9ae59`/`8eb89af`/`45907bb`/`3854877`），claim 释放 |
@@ -61,6 +62,7 @@
 | 11-16 19:06 | 多服务器切换补单测时新增 `internal/app/proxy_driver.go`（`proxyDriver` 接口）：`Connect/Disconnect/ProxyStatus/CleanupResidue` 改走 `s.drv()`，**对外签名与行为不变**；`SwitchServer` 增加「目标存在」前置校验 | M3 线 | 已提交 `2c9ae59`。账号线若新增代理调用，请用 `s.drv()` 而不是直接调 `proxy.*` |
 | 11-17 11:35 | **新任务交接**：订阅权限分割审计完成（《资料/开发/权限分割审计报告-v0.2.md》），两处 P1：①`expiredDemo` 演示开关未接真实 `account.locked`（index.html:1983/2030-2043/2106-2113/2185-2188）；②AI 页宣称订阅解锁但无门控。**请账号线按《登录与订阅权限分割-接口会话对接单-v1.0.md》接单**：先定稿 D1/D2，再做客户端改造 C1（60-account.js 归你、index.html 走分区精确编辑）与 C2（SwitchServer 加 Locked 检查，动 connect.go 前在 §一 登记） | 客户端/审计会话 → 账号线 | 待接单 |
 | 11-17 11:45 | **账号线已接单并完成 D1-D4 定稿**：对接单升 v1.1。结论：locked 判定式与现行实现一致（**DB 零改动**）；分级表——多服务器切换+批量体检锁（切换保留 1 台=最近成功连接优先）、今日流量与 AI 工具改免费、一键修复/备份迁移/抢先通道占位随实装裁决；离线沿用 7 天宽限（locked=true 照锁，否决 24h 降级放行——会变成拔网线解锁）；续订下次拉快照即解锁；D3 零字段零端点，契约新增 §十六、schema 新增 §十三。**待客户端线实施 C1-C3**（60-account.js 部分归账号线，已 claim；connect.go 开工前自行登记） | 账号线 → 客户端线 | 定稿完成，等 C1-C3 联调 |
+| 11-17 13:05 | **真机验收两处发现，已修 1 处**：①（已修，客户端）refresh token 是轮换制一次性凭证，`tryRefresh` 刷出的新 token 只进内存不落盘 → App 重启必 401「session is invalid」，我的页三处永久「加载中」。修复：`SetRefreshHook` 刷新即落盘 + 启动时过期主动续期、续期确认作废则清登录态转登录页；新增 3 条单测。②（**待账号线核**，服务端）按契约 §T7 `account_snapshot`/`referral_snapshot` 应「匿名调用被拒」，但 11-17 12:50 实测匿名 POST 均返回 200 且带完整 rules/levels 与一个 referral code（DUK-1A0C1）——请核对 GRANT/REVOKE 或函数内 `auth.uid()` 判定是否在 v1.2 改造中被放松；若是刻意放开请在契约补记口径 | 客户端/审计线 → 账号线 | ①已修复待重登复测；②待核 |
 
 ## 五、动共享文件前的 10 秒自检
 

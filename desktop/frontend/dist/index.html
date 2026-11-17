@@ -820,13 +820,13 @@ window.addEventListener('keydown',function(e){
           </div>
           <table style="margin-top:14px">
             <tr><th>本月点击</th><th>注册</th><th>成交</th><th>待结算收益</th></tr>
-            <tr><td>128</td><td>11</td><td>3</td><td style="color:#10b981;font-weight:600">¥44.55</td></tr>
+            <tr><td>—</td><td>—</td><td>—</td><td style="color:#10b981;font-weight:600">¥0</td></tr>
           </table>
           <div style="display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:14px;border-top:1px dashed #eef0f3">
             <div>
               <div style="font-size:12px;color:#6b7280">可提现余额</div>
-              <b style="font-size:19px;color:#10b981">¥44.55</b>
-              <span style="font-size:12px;color:#6b7280;margin-left:6px">满 ¥50 可提 · 还差 ¥5.45</span>
+              <b style="font-size:19px;color:#10b981">¥0</b>
+              <span style="font-size:12px;color:#6b7280;margin-left:6px">满 ¥50 可提</span>
             </div>
             <div style="margin-left:auto;display:flex;gap:8px">
               <button class="btn sm ghost" onclick="ext('https://dukou.dev/account/promo','推广收益明细','按月对账：谁通过你的链接注册、谁下了单、返佣多少，逐笔可查。<br>收益明细与提现同在官网用户中心，客户端只展示汇总数字。')">收益明细</button>
@@ -1595,8 +1595,8 @@ window.addEventListener('keydown',function(e){
   }
   function withdraw(){
     ext('https://dukou.dev/account/withdraw','推广收益提现',
-      '提现流程：绑定支付宝 / 微信 → 输入金额（≥¥50）→ 提交，T+3 到账，无手续费。<br>'
-      + '当前可提现 <b style="color:#10b981">¥44.55</b>，还差 ¥5.45 满额；也可以选择把余额直接抵扣订阅（下个版本上线）。<br>'
+      '提现流程：绑定支付宝 / 微信 → 输入金额（满 ¥50）→ 提交，按月结算后到账。<br>'
+      + '当前可提现余额以官网用户中心为准；也可以选择把余额直接抵扣订阅（下个版本上线）。<br>'
       + '<b>为什么不在客户端提现</b>：资金操作需要实名与风控，统一在官网完成，客户端不接触你的收款账户。');
   }
   /* 订阅：免费领取试用（首次打开为未领取态） */
@@ -2644,7 +2644,7 @@ window.addEventListener('keydown',function(e){
          供自动化验证；正式构建版本号不带 -dev，不会触发。
          可选值：'ai'（AI 工具页检测）| 'doctor'（体检）| 'backup'（备份提交流程）。
          改验收目标时只改这一行。 */
-      var DEV_TARGET = 'ai';
+      var DEV_TARGET = 'me';
       if (/-dev$/.test(info.version || '')) {
         if (DEV_TARGET === 'lock') {
           /* dev 自检：订阅锁定渲染验收——进服务器页、触发 -dev 演示开关、
@@ -2653,6 +2653,11 @@ window.addEventListener('keydown',function(e){
             nav('servers');
             setTimeout(function(){ toggleExpireDemo(); closeModal('expiredModal'); }, 600);
           }, 1200);
+          return;
+        }
+        if (DEV_TARGET === 'me') {
+          /* dev 自检：账号页验收——登录态、订阅快照、推广信息渲染 */
+          setTimeout(function(){ nav('me'); }, 1200);
           return;
         }
         if (DEV_TARGET === 'servers') {
