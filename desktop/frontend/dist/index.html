@@ -512,7 +512,7 @@ window.addEventListener('keydown',function(e){
             <div class="stats">
               <div class="stat" id="st1"><b>—</b><span>出口 IP</span></div>
               <div class="stat" id="st2"><b>—</b><span>延迟</span></div>
-              <div class="stat locked" id="st3"><b>订阅解锁</b><span>今日流量</span></div>
+              <div class="stat" id="st3"><b>—</b><span>今日流量</span></div>
             </div>
           </div>
           <div class="trial-line" id="trialBar">
@@ -591,7 +591,7 @@ window.addEventListener('keydown',function(e){
             </div>
             <div class="ops"><button class="btn sm" onclick="openAddModal()">添加服务器</button></div>
           </div>
-          <div class="lock-note"><svg class="i sm" style="color:#b45309"><use href="#i-lock"/></svg><b>订阅权益说明</b>：试用/订阅期间服务器数量不限；到期后仅保留 1 台可切换，其余进入只读（配置不删除，续费即恢复）。免费版不提供「一键切换」与「批量体检」。<a href="javascript:void(0)" id="lockDemoLink" onclick="toggleExpireDemo()" style="margin-left:8px;color:#0f766e">▶ 演示到期锁定状态</a></div>
+          <div class="lock-note"><svg class="i sm" style="color:#b45309"><use href="#i-lock"/></svg><b>订阅权益说明</b>：试用/订阅期间服务器数量不限；订阅到期（试用已用尽且未续订）后仅保留 1 台可切换——优先保留最近成功连接的线路，其余进入只读（配置不删除，续费即恢复），批量体检同期转为订阅功能。<b>代理连接与单台体检不受任何影响</b>，未登录过也可正常使用。<a href="javascript:void(0)" id="lockDemoLink" onclick="toggleExpireDemo()" style="margin-left:8px;color:#0f766e">▶ 演示到期锁定状态</a></div>
         </div>
 
         <div class="card">
@@ -805,12 +805,10 @@ window.addEventListener('keydown',function(e){
           <div style="border-top:1px dashed #eef0f3;margin-top:16px;padding-top:14px">
             <div style="font-size:13px;color:#6b7280;margin-bottom:8px">订阅解锁（代理本身永不受影响）</div>
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px 14px;font-size:13px;color:#374151">
-              <div><svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>仪表盘（延迟 / 流量 / IP 健康）</div>
               <div><svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>多服务器管理与一键切换</div>
-              <div><svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>配置备份与跨机迁移</div>
-              <div><svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>健康诊断一键自动修复</div>
-              <div><svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>AI 工具页与健康提醒</div>
-              <div><svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>优先更新通道</div>
+              <div><svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>配置备份与跨机迁移<span style="color:#9ca3af">（即将上线）</span></div>
+              <div><svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>健康诊断一键自动修复<span style="color:#9ca3af">（即将上线）</span></div>
+              <div><svg class="i sm" style="color:#0f766e"><use href="#i-check"/></svg>优先更新通道<span style="color:#9ca3af">（即将上线）</span></div>
             </div>
           </div>
         </div>
@@ -1299,7 +1297,7 @@ window.addEventListener('keydown',function(e){
         <svg class="i sm" style="color:#047857"><use href="#i-check"/></svg><b>代理连接照常可用</b>：不限速、不中断，已保存的线路配置全部保留
       </div>
       <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px">
-        <svg class="i sm" style="color:#b45309"><use href="#i-lock"/></svg><b>以下增值功能转为只读</b>：多服务器一键切换（仅保留 1 台）、批量体检、流量统计、AI 工具页、备份与迁移、健康提醒
+        <svg class="i sm" style="color:#b45309"><use href="#i-lock"/></svg><b>以下增值功能转为只读</b>：多服务器一键切换（仅保留最近使用的 1 台）、批量体检。代理连接、单台体检与全部已保存配置不受影响
       </div>
       <div class="modal-note" style="margin-top:10px">续费后立即全部恢复，无需重新配置。本说明<b>仅到期当天首次启动时显示一次</b>，之后只在首页横幅提醒，不再弹窗打扰。</div>
     </div>
@@ -1624,8 +1622,9 @@ window.addEventListener('keydown',function(e){
       '套餐、优惠与发票都在官网完成，支付走微信 / 支付宝。<br>客户端只读取订阅状态，<b>不接触你的支付凭证</b>；付款后回到客户端重新登录即可刷新到期时间。');
   }
   /* 到期锁定演示：真实禁用非保留服务器的切换/体检/编辑/删除，并弹一次权益说明。
-     账号体系在 v0.3，这里用列表页链接手动切换状态，方便验收锁定口径。 */
+     仅 -dev 构建（或无后端的浏览器演示态）可用——正式构建的锁定由订阅状态驱动。 */
   function toggleExpireDemo(){
+    if (window.__isDevBuild === false) { toast('到期锁定演示仅 -dev 构建可用；真实锁定由订阅状态自动驱动'); return; }
     expiredDemo = !expiredDemo;
     renderServers();
     var link = document.getElementById('lockDemoLink');
@@ -1976,19 +1975,42 @@ window.addEventListener('keydown',function(e){
   }
   /* ── 服务器清单：真数据渲染（§5.1 ListServers / UpdateServer / RemoveServer） ── */
   var _servers = [];
-  /* 到期锁定演示：订阅到期后只留 1 台可切换，其余进入只读。
-     v0.2 还没有账号体系，这个开关由列表页的演示链接控制；
-     但禁用是**真的**——按钮 disabled + 操作函数里再挡一次，
-     避免"看起来灰了其实还能点"的假禁用。 */
-  var expiredDemo = false;
+  /* 订阅锁定（契约 §十六 16.2/16.3 —— 唯一口径）。
+     锁定判定全部在 Go 层（SubscriptionLock：登出 24h 内保留最后快照的 locked、
+     从未登录不锁、离线照常锁、保留 1 台 = 最近成功连接优先），
+     前端只消费结果渲染禁用态。expiredDemo 降级为 -dev 构建的演示开关：
+     正式构建里演示链接隐藏、开关恒为 false。 */
+  var expiredDemo = false; /* 仅 -dev / 浏览器演示用；真实锁定读 _lock */
+  var _lock = { locked: false, keepId: '', offline: false };
+  function lockOn() { return _lock.locked || expiredDemo; }
   function lockKeepId(list) {
+    list = list || _servers;
     if (!list || !list.length) return '';
+    /* Go 判定的保留线路（最近成功连接优先）在清单里时以它为准 */
+    if (lockOn() && _lock.keepId) {
+      var hit = list.filter(function (s) { return s.id === _lock.keepId; })[0];
+      if (hit) return hit.id;
+    }
     var act = list.filter(function (s) { return s.status === 'active'; })[0];
     if (act) return act.id;
     /* 没有使用中的：保留一台能真正连上的（待部署的连不了，别把名额给它） */
     var ready = list.filter(function (s) { return s.status !== 'pending'; })[0];
     return (ready || list[0]).id;
   }
+  /* 拉一次锁定判定并按需重渲染。60-account.js 在拉到新快照
+     （登录成功 / 领试用 / 续费引导结束）后调用 window.refreshLockState()，
+     实现「下次拉快照即解锁，无需重启」（契约 §十六 16.2）。 */
+  function refreshLockState() {
+    if (!DukouAPI.hasBackend() || !DukouAPI.subscriptionLock) return Promise.resolve();
+    return DukouAPI.subscriptionLock().then(function (li) {
+      if (!li) return;
+      var next = { locked: !!li.locked, keepId: li.keepId || '', offline: !!li.offline };
+      var changed = next.locked !== _lock.locked || next.keepId !== _lock.keepId;
+      _lock = next;
+      if (changed) renderServers();
+    }).catch(function () { /* 评估失败按未锁渲染；Go 层同样 fail-open */ });
+  }
+  window.refreshLockState = refreshLockState;
   /* 首页快捷卡与线路条：跟清单保持一致，不再写死"3 台 · 使用中：新加坡" */
   function refreshHomeQuick() {
     var q = document.getElementById('qServers');
@@ -2017,7 +2039,7 @@ window.addEventListener('keydown',function(e){
      再给一个切到自己的按钮是自相矛盾；切换按钮只出现在备用线路行。 */
   function srvRowHtml(s, i) {
     var keepId = lockKeepId(_servers);
-    var locked = expiredDemo && s.id !== keepId;
+    var locked = lockOn() && s.id !== keepId;
     var pill = locked ? SRV_PILL.locked : (SRV_PILL[s.status] || SRV_PILL.standby);
     var flag = s.flag ? '<div class="flag">' + s.flag + '</div>'
                       : '<div class="flag" style="background:#f3f4f6;color:#6b7280">·</div>';
@@ -2104,7 +2126,7 @@ window.addEventListener('keydown',function(e){
   /* 到期锁定的真实拦截：按钮已 disabled，这里再挡一层（键盘/脚本触发也不放行） */
   var _geoTried = {}; /* 本会话已尝试过地理识别的服务器 ID */
   function blockedByLock(idx) {
-    if (!expiredDemo) return false;
+    if (!lockOn()) return false;
     var s = _servers[idx];
     if (!s) return false;
     if (s.id === lockKeepId(_servers)) return false;
@@ -2182,7 +2204,7 @@ window.addEventListener('keydown',function(e){
   function runBatchCheck(){
     if (!DukouAPI.hasBackend()) { toast('后端未就绪：请在桌面 App 内使用'); return; }
     if (!_servers.length) { toast('还没有服务器，先到「网络配置」部署一台'); nav('network'); return; }
-    if (expiredDemo && _servers.length > 1) {
+    if (lockOn() && _servers.length > 1) {
       toast('订阅已到期：批量体检为订阅功能，续费后恢复');
       return;
     }
@@ -2393,6 +2415,9 @@ window.addEventListener('keydown',function(e){
        快捷卡/线路条读的是清单快照，要跟着重渲染，否则会出现
        「首页未连接、快捷卡还写使用中」的矛盾（真机踩过）。 */
     refreshHomeQuick();
+    /* 连接成功会更新「最近成功连接」→ 锁定时保留线路可能变化，
+       顺带刷新订阅锁定判定（内部有变更才重渲染，不会抖）。 */
+    refreshLockState();
 
     /* 出口探测中：3 秒后再问一次后端（后端 Current 会重新探测）；
        拿到出口或判定失败就停。断开/重连时 _egressRetry 由上面归零。 */
@@ -2599,8 +2624,13 @@ window.addEventListener('keydown',function(e){
   }
   whenBackendReady(function () {
     refreshConn();
+    refreshLockState(); /* 启动即拉锁定判定，锁定态不依赖登录页动作 */
     DukouAPI.appInfo().then(function (info) {
       if (!info) return;
+      /* -dev 构建标记：到期锁定演示链接只在 dev 可用（契约 §十六 16.3） */
+      window.__isDevBuild = /-dev$/.test(info.version || '');
+      var dl = document.getElementById('lockDemoLink');
+      if (dl && window.__isDevBuild === false) dl.style.display = 'none';
       /* 版本 / 运行环境用真值填，不再写死 "v0.2.0 (build 2026.11.14)" */
       var v = 'v' + (info.version || '未知');
       var vc = document.getElementById('verCur'); if (vc) vc.textContent = v;
@@ -2616,6 +2646,15 @@ window.addEventListener('keydown',function(e){
          改验收目标时只改这一行。 */
       var DEV_TARGET = 'ai';
       if (/-dev$/.test(info.version || '')) {
+        if (DEV_TARGET === 'lock') {
+          /* dev 自检：订阅锁定渲染验收——进服务器页、触发 -dev 演示开关、
+             关掉弹窗，让行内禁用态直接可见 */
+          setTimeout(function(){
+            nav('servers');
+            setTimeout(function(){ toggleExpireDemo(); closeModal('expiredModal'); }, 600);
+          }, 1200);
+          return;
+        }
         if (DEV_TARGET === 'servers') {
           setTimeout(function(){ nav('servers'); }, 1200);
           return;

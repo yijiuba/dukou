@@ -101,6 +101,11 @@
     aiTools: function () { return call('AITools'); },
     aiToolInstall: function (id) { return call('AIToolInstall', [id]); },
     aiToolUninstall: function (id) { return call('AIToolUninstall', [id]); },
-    aiToolLaunch: function (id) { return call('AIToolLaunch', [id]); }
+    aiToolLaunch: function (id) { return call('AIToolLaunch', [id]); },
+
+    /* ── 订阅锁定（契约 §十六 16.2/16.3，真接口）：
+       返回 { locked, keepId, source, offline }。锁定判定全部在 Go 层
+       （登出 24h 保留 / 从未登录不锁 / 离线照常锁），前端只消费结果。 ── */
+    subscriptionLock: function () { return call('SubscriptionLock'); }
   };
 })();
