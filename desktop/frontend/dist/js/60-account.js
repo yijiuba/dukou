@@ -483,12 +483,16 @@
         state.account = null;
         state.referral = null;
         renderMe();
+        /* 登出后锁定态要按「24h 保留最后快照」重新评估（契约 §十六 16.2） */
+        try { window.refreshLockState(); } catch (e) {}
         return;
       }
       renderMe(); // 先把邮箱等确定信息画出来，网络请求慢也不空白
       API.account().then(function (a) {
         state.account = a;
         renderMe();
+        /* 拉到新快照即刷新锁定态——续订/领试用后无需重启客户端（契约 §十六 16.2） */
+        try { window.refreshLockState(); } catch (e) {}
       }).catch(function (e) { toast('订阅状态读取失败：' + errText(e)); });
 
       API.referral().then(function (r) {
@@ -524,17 +528,16 @@
         state.account = (r && r.account) || state.account;
         toast(r && r.status === 'already' ? '试用已领取过，无需重复领取' : '领取成功：3 天全功能试用已开启');
         refresh();
+        /* 领试用 = 新快照，锁定态立即解除（验收标准 §四.3） */
+        try { window.refreshLockState(); } catch (e) {}
       }).catch(function (e) { toast('领取失败：' + errText(e)); });
     };
     /* 接管 index.html 内联的 claimTrial()：同名全局函数覆盖后，
-       原有 onclick="claimTrial()" 自然指向真实接口，无需改 HTML。 */
-    window.claimTrial = function () {
-      if (window.MOCK && window.MOCK.account === true) {
-        /* 演示态（MOCK 未翻）：交回 index.html 原逻辑，行为与改造前一致 */
-        if (typeof origClaimTrial === 'function') { origClaimTrial(); return; }
-      }
-      window.accClaimTrial();
-    };
+       原有 onclick="claimTrial()" 自然指向真实接口，无需改 HTML。
+       （MOCK.account 已翻 false，演示分支清理；浏览器态本文件顶部已整体跳过，
+       index.html 的 origClaimTrial 仅作 -dev 构建调试参考保留。） */
+    window.claimTrial = window.accClaimTrial;
+    void origClaimTrial;
     window.accLogin = openAuth;
     window.accBuy = function () {
       if (typeof window.ext === 'function') {

@@ -21,14 +21,16 @@
     return app[method].apply(app, args || []);
   }
 
-  /* mock 开关注释：值为 true 表示该域仍走前端假数据（M3 填充/后续接真） */
+  /* mock 开关注释：值为 true 表示该域仍走前端假数据（M3 填充/后续接真）。
+     v0.3 账号线已接线翻 false：account/orders/referral/plans 走真实契约接口；
+     batch 的锁定拦截已接真实 LockInfo（契约 §十六）。 */
   var MOCK = {
-    account: true,   // 订阅状态（v0.3 接真实账号）
-    orders: true,    // 订单列表
-    referral: true,  // 推广数据
-    plans: true,     // 套餐
+    account: false,  // 订阅状态（契约 E4，已接真实账号）
+    orders: false,   // 订单列表（E7）
+    referral: false, // 推广数据（E8）
+    plans: false,    // 套餐（E6）
     doctor: false,   // 体检（M2-1 已接 App.Doctor）
-    batch: true,     // 批量体检（M2 后续）
+    batch: false,    // 批量体检（锁定拦截已接真实 LockInfo）
     sync: true,      // 同步配置（M3）
     update: true     // 更新检查（发版后接 GitHub Releases）
     // servers / deploy / proxyStatus / appInfo：不 mock，走真接口
@@ -72,9 +74,7 @@
     appInfo: function () { return call('AppInfo'); },
     configDir: function () { return call('ConfigDir'); },
 
-    /* ── 账号与订阅（v0.3，契约 v1.0；真接口已就绪） ──
-       注意：界面仍显示演示数据（MOCK.account 等为 true），
-       接线时把对应开关置 false 即可，调用签名不再变化。 */
+    /* ── 账号与订阅（v0.3，契约 v1.0；已接真实接口，MOCK 开关已翻 false） ── */
     sessionInfo: function () { return call('SessionInfo'); },
     loginRequestCode: function (email) { return call('LoginRequestCode', [email]); },
     loginVerify: function (email, verificationId, isExistingUser, code) {
