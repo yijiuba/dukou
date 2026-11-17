@@ -203,3 +203,51 @@ func TestAtomicWriteNoTmpLeftover(t *testing.T) {
 		t.Fatalf("原子写后不应残留临时文件: %v", entries)
 	}
 }
+
+// 部署成功后只回填代理密码，SSH 凭据必须原样保留——
+// 2026-11-17 真机踩坑：回填把 SSH 密码清空，健康诊断从此永远
+// 报「SSH 连不上服务器」（部署却明明成功）。
+func TestUpdateProxyPasswordKeepsSSHCredentials(t *testing.T) {
+	st := openTestStore(t)
+	s, err := st.Add(ServerInput{
+		Name: "新加坡 · 阿里云", Flag: "SG", Host: "1.2.3.4",
+		AuthType: "password", SSHPassword: "ssh-pw-keep",
+		SSHUser:  "root",
+	})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	// 模拟 deploy.go 部署成功后的回填：只带 ProxyPassword
+	if _, err := st.Update(s.ID, ServerInput{
+		Name: s.Name, Flag: s.Flag, Host: s.Host,
+		AuthType: s.AuthType, SSHUser: s.SSHUser,
+		ProxyPassword: "proxy-pw-new",
+	}); err != nil {
+		t.Fatalf("Update(仅代理密码): %v", err)
+	}
+
+	pw, key, err := st.SSHCredentials(s.ID)
+	if err != nil || pw != "ssh-pw-keep" || key != "" {
+		t.Fatalf("SSH 凭据被回填抹掉了: pw=%q key=%q err=%v", pw, key, err)
+	}
+
+	// 反向同理：只更新 SSH 密码不能丢代理密码
+	user, proxyPW, err := st.ProxyCredentials(s.ID)
+	if err != nil || proxyPW != "proxy-pw-new" || user == "" {
+		t.Fatalf("代理凭据丢失: user=%q proxyPW=%q err=%v", user, proxyPW, err)
+	}
+	if _, err := st.Update(s.ID, ServerInput{
+		Name: s.Name, Flag: s.Flag, Host: s.Host,
+		AuthType: s.AuthType, SSHUser: s.SSHUser,
+		SSHPassword: "ssh-pw-v2",
+	}); err != nil {
+		t.Fatalf("Update(仅SSH密码): %v", err)
+	}
+	if _, proxyPW2, _ := st.ProxyCredentials(s.ID); proxyPW2 != "proxy-pw-new" {
+		t.Fatalf("更新 SSH 密码把代理密码丢了: %q", proxyPW2)
+	}
+	if pw2, _, _ := st.SSHCredentials(s.ID); pw2 != "ssh-pw-v2" {
+		t.Fatalf("SSH 密码应更新为新值: %q", pw2)
+	}
+}

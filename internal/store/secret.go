@@ -67,21 +67,25 @@ func openSecretStore(dir string) (*secretStore, error) {
 	return ss, nil
 }
 
-// set 写入并落盘。password/key 允许分别更新：传空串表示该项不变？不——
-// 这里语义是"整体覆盖"：只传想保存的项，另一项清空。上层 Update 的
-// "留空=保持原值"语义在 Store.Update 里通过"不调用 set"实现。
+// set 写入并落盘。password/key/proxy 三个字段统一「传空串=保持原值」，
+// 与上层 Store.Update 的契约（"SSHPassword/SSHKey 为空表示保持原凭据不变"）
+// 完全对齐——否则任何"只回填一项"的调用都会把没传的项清空。
 //
-// proxy 是例外：它单独保留。改 SSH 凭据时不可能顺带重设代理密码，
-// 若跟着整体覆盖，用户会莫名其妙地连不上——明明什么都没改。
+// 2026-11-17 真机踩坑：部署成功后回填代理密码时 Update 只传 ProxyPassword，
+// 本函数把已保存的 SSH 密码整体清空，之后健康诊断永远报
+// 「SSH 连不上服务器，请填写 SSH 密码或私钥」（部署却明明成功）。
+// 若确需清空某项，走 Remove/条目删除，不存在逐项清空的业务场景。
 func (ss *secretStore) set(id, password, key, proxy string) error {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 
 	entry := secretEntry{}
-	// 先继承已有的代理密码与会话
+	// 空字段一律继承已有值（含代理密码与会话）
 	if old, ok := ss.entries[id]; ok {
 		entry.Proxy = old.Proxy
 		entry.Session = old.Session
+		entry.Password = old.Password
+		entry.Key = old.Key
 	}
 
 	var err error

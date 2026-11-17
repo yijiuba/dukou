@@ -234,6 +234,8 @@
       renderMeInner();
     } catch (e) {
       if (window.console) console.warn('[account] 渲染失败，保持原页面：', e);
+      /* 打包版没有 console 出口，toast 出来才能第一时间发现渲染异常 */
+      if (typeof window.toast === 'function') toast('账号区渲染异常：' + (e && e.message || e));
     }
   }
 
@@ -273,6 +275,10 @@
     renderReferral(page);
     renderBanner(page);
     renderLevelTable();
+    /* 侧边栏状态与首页试用条也由真实账号驱动（2026-11-17 真机反馈：
+       领过试用仍显示「试用未领取」，静态演示文字误导用户） */
+    renderSideTrial();
+    renderHomeTrial();
   }
 
   /* 等级行：文案 + 进度条 + 下一级提示 */
@@ -510,6 +516,58 @@
     else page.appendChild(b);
   }
 
+  /* ── 试用状态：侧边栏左下角 + 首页试用条 ─────────────────── */
+
+  /* trial 三态归类：unclaimed（可领）/ active（试用中）/ ended（已结束）。
+     loggedOut / loading 返回 null，由调用方决定展示。 */
+  function trialPhase(a) {
+    if (!a) return null;
+    var ends = a.trialEndsAt ? new Date(a.trialEndsAt) : null;
+    if (ends && ends.getTime() > Date.now()) return 'active';
+    if (a.trialAvailable) return 'unclaimed';
+    return 'ended';
+  }
+
+  function renderSideTrial() {
+    var el = document.getElementById('sideTrial');
+    if (!el) return;
+    if (!state.loggedIn) { el.textContent = '未登录'; el.style.color = '#6b7280'; return; }
+    var phase = trialPhase(state.account);
+    if (!phase) {
+      el.textContent = state.accountErr ? '读取失败' : '加载中…';
+      el.style.color = '#9ca3af';
+      return;
+    }
+    if (phase === 'active') { el.textContent = '试用中'; el.style.color = '#d97706'; return; }
+    if (phase === 'unclaimed') { el.textContent = '试用未领取'; el.style.color = ''; return; }
+    el.textContent = '试用已结束'; el.style.color = '#9ca3af';
+  }
+
+  function renderHomeTrial() {
+    var bar = document.getElementById('trialBar');
+    if (!bar) return;
+    var span = bar.querySelector('span');
+    var btn = bar.querySelector('button');
+    if (!span || !btn) return;
+    if (!state.loggedIn || !state.account) return; // 未登录/加载中保持「新用户」默认文案
+    var phase = trialPhase(state.account);
+    if (phase === 'active') {
+      span.innerHTML = '试用进行中 · <b>' + fmtDate(state.account.trialEndsAt) + '</b> 到期，'
+        + '到期后代理照常可用，不限速不中断';
+      btn.textContent = '续费 / 升级';
+      btn.setAttribute('onclick', 'accBuy()');
+    } else if (phase === 'unclaimed') {
+      span.innerHTML = '新用户可免费领 <b>3 天</b>全功能试用 · 到期后代理照常可用，不限速不中断';
+      btn.textContent = '免费领取';
+      btn.setAttribute('onclick', 'claimTrial()');
+    } else {
+      span.innerHTML = '3 天试用已于 <b>' + fmtDate(state.account.trialEndsAt) + '</b> 结束 · '
+        + '代理照常可用，续订解锁桌面端增值功能';
+      btn.textContent = '查看套餐';
+      btn.setAttribute('onclick', 'accBuy()');
+    }
+  }
+
   /* ── 数据加载 ───────────────────────────────────────────── */
 
   function refresh() {
@@ -577,7 +635,14 @@
       if (!state.loggedIn) { openAuth(); return; }
       API.claimTrial().then(function (r) {
         state.account = (r && r.account) || state.account;
-        toast(r && r.status === 'already' ? '试用已领取过，无需重复领取' : '领取成功：3 天全功能试用已开启');
+        if (r && r.status === 'already') {
+          /* 已领过 ≠ 领取成功：明确告知结束时间，别让用户以为功能已解锁 */
+          var ends = (r.account && r.account.trialEndsAt) || (state.account && state.account.trialEndsAt);
+          toast('试用已领取过' + (ends ? '（已于 ' + fmtDate(ends) + ' 结束）' : '')
+            + '；每个账号限领一次，续费/升级可解锁全部功能');
+        } else {
+          toast('领取成功：3 天全功能试用已开启');
+        }
         refresh();
         /* 领试用 = 新快照，锁定态立即解除（验收标准 §四.3） */
         try { window.refreshLockState(); } catch (e) {}

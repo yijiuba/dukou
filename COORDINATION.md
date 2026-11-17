@@ -9,6 +9,7 @@
 
 | 登记时间 | 会话 / 任务 | 占用文件 | 意图 | 状态 |
 |---|---|---|---|---|
+| 11-17 16:45 | 客户端/审计线 · 真机反馈修复 | `internal/store/secret.go`（set 空字段继承）、`internal/store/store_test.go`（+1 单测）、`js/60-account.js`（侧边栏/首页试用条接真 + already 提示） | ①部署回填代理密码把 SSH 凭据清空（诊断报 SSH 连不上的根因）；②领过试用仍显示「试用未领取」（侧边栏/首页静态演示文字） | **已完成**：secret.set 改为空字段=保持原值（与 Update 契约对齐）+回归单测；侧边栏/首页试用条按 trialPhase 渲染（试用中/未领取/已结束），claim already 提示带结束日期；真机验收通过（final1.png）。**注意**：用户现网实例还是旧构建，需重启 App 才生效；SSH 密码已被旧版抹掉，需编辑服务器重填一次密码 |
 | 11-17 12:55 | 客户端/审计线 · 真机验收排查 | `internal/account/client.go`（refresh 落盘钩子）、`internal/app/account.go`（启动对账）、`js/60-account.js`（加载失败态）、`index.html` 828-829/1599（静态演示数字） | 真机复现：昨日登录的 refresh token 轮换后未落盘→重启即 401，我的页三处永久「加载中」。修会话续期链路+失败态 UI | **已完成**（见 §四 11-17 13:05 行），dev 真机验收通过；待用户重登后复测 |
 | 11-17 11:52 | 客户端/审计线 C1-C3 | `internal/app/connect.go`（SwitchServer/Connect 加锁检查）、`internal/app/{lockcheck.go,lockcheck_test.go}`（新增）、`internal/store/lockstate.go`（新增）、`internal/app/app.go`（struct 字段区末尾追加）、`desktop/app.go`（末尾追加转发）、`index.html`（服务器页分区+st3+806-813 清单+expiredModal 文案）、`js/20-api.js`（DukouAPI 末尾追加 subscriptionLock） | 对接单 v1.1 D2 定稿落地：expiredDemo→真实 locked、SwitchServer 加 SUB:LOCKED、文案修正 | **已完成** `be5de35`/`17cc272`，dev 真机截图验收通过；待账号线在 60-account.js 拉到新快照后调 `window.refreshLockState()`（续订即解锁），真实账号联调项见对接单 §四 |
 | 11-16 17:58 | 账号线 T9 | `internal/account/**`、`js/60-account.js`、`js/50-events.js`（末尾追加加载器） | 登录弹窗 + 订阅状态，运行时注入，**未碰 index.html** | 已提交 `44b9956`，UI 待真机验收 |
